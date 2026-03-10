@@ -1,0 +1,1794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>This Happened — Daily News Quiz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Playfair+Display+SC:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brick:          #8B2118;
+      --brick-hover:    #6E1A13;
+      --ink:            #1C1C1C;
+      --paper:          #FAFAF7;
+      --cream:          #F4EFE6;
+      --rule:           #1C1C1C;
+      --muted:          #666;
+      --correct-fg:     #1B5E20;
+      --correct-bg:     rgba(27, 94, 32, 0.09);
+      --incorrect-fg:   #7B1C1C;
+      --incorrect-bg:   rgba(123, 28, 28, 0.09);
+    }
+
+    html { font-size: 18px; scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'EB Garamond', Georgia, serif;
+      min-height: 100vh;
+    }
+
+    /* ── PAGES ─────────────────────────────────────────── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── LAYOUT ─────────────────────────────────────────── */
+    .wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 0 1.4rem;
+    }
+
+    /* ── AUTH BAR ────────────────────────────────────────── */
+    .auth-bar {
+      background: var(--ink);
+      color: #fff;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: 'EB Garamond', Georgia, serif;
+    }
+
+    .auth-bar-inner {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0.35rem 1.4rem;
+      gap: 1rem;
+    }
+
+    .auth-bar-user {
+      opacity: 0.75;
+    }
+
+    .auth-bar-user strong {
+      opacity: 1;
+      font-style: italic;
+      font-weight: normal;
+      color: #fff;
+    }
+
+    .auth-bar-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      opacity: 0.75;
+      padding: 0;
+      transition: opacity 0.15s;
+    }
+
+    .auth-bar-btn:hover { opacity: 1; }
+
+    .auth-bar-divider {
+      opacity: 0.3;
+    }
+
+    .auth-bar-btn.signup {
+      color: #fff;
+      opacity: 1;
+      font-style: italic;
+    }
+
+    /* ── MASTHEAD ────────────────────────────────────────── */
+    .masthead {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 1.6rem 1.4rem 0;
+    }
+
+    .mh-rule-top {
+      border: none;
+      border-top: 3px solid var(--rule);
+      margin-bottom: 0;
+    }
+
+    .mh-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.55rem 0;
+      gap: 0.5rem;
+    }
+
+    .mh-side {
+      font-size: 0.72rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.55;
+      min-width: 6rem;
+    }
+
+    .mh-side.right { text-align: right; }
+
+    .mh-center { text-align: center; flex: 1; }
+
+    .mh-title {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: clamp(2rem, 8vw, 3.8rem);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      line-height: 1;
+      color: var(--ink);
+    }
+
+    .mh-sub {
+      font-family: 'EB Garamond', Georgia, serif;
+      font-style: italic;
+      font-size: 0.88rem;
+      color: var(--brick);
+      letter-spacing: 0.07em;
+      margin-top: 0.2rem;
+    }
+
+    .mh-rule-mid {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin: 0;
+    }
+
+    /* double rule below masthead */
+    .double-rule {
+      border: none;
+      margin: 0;
+      height: 5px;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+    }
+
+    /* ── TICKER STRIP ────────────────────────────────────── */
+    .ticker {
+      background: var(--brick);
+      color: #fff;
+      text-align: center;
+      padding: 0.42rem 1rem;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.16em;
+    }
+
+    /* ── TIMER ───────────────────────────────────────────── */
+    .timer-bar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 0.4rem;
+      padding: 0.45rem 0 0;
+    }
+
+    .timer-label {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    #timer-display {
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.06em;
+      min-width: 3.2ch;
+      text-align: right;
+    }
+
+    #timer-display.stopped { color: var(--brick); }
+
+    /* ── QUIZ BODY ───────────────────────────────────────── */
+    .quiz-section { padding: 1.8rem 0 2.4rem; }
+
+    .quiz-headline {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(1.5rem, 4.5vw, 2.1rem);
+      font-weight: 900;
+      line-height: 1.18;
+      margin-bottom: 0.55rem;
+    }
+
+    .quiz-deck {
+      font-size: 1.05rem;
+      font-style: italic;
+      color: #333;
+      line-height: 1.55;
+      margin-bottom: 1rem;
+    }
+
+    .quiz-byline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.73rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-top: 1px solid #c8c8c8;
+      border-bottom: 1px solid #c8c8c8;
+      padding: 0.35rem 0;
+      margin-bottom: 1.6rem;
+    }
+
+    .byline-label {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      color: var(--brick);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .byline-dot { color: var(--brick); }
+
+    /* ── ARTICLE TEXT ────────────────────────────────────── */
+    .article-body {
+      font-size: 1.2rem;
+      line-height: 1.82;
+      color: var(--ink);
+    }
+
+    .article-body p { margin-bottom: 1.3em; }
+
+    .article-body > p:first-child::first-letter {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 4em;
+      font-weight: 900;
+      float: left;
+      line-height: 0.76;
+      margin-right: 0.07em;
+      margin-top: 0.09em;
+      color: var(--brick);
+    }
+
+    /* ── BLANK INPUTS ────────────────────────────────────── */
+    .blank-input {
+      display: inline-block;
+      border: none;
+      border-bottom: 2px solid var(--ink);
+      background: transparent;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 1em;
+      line-height: 1;
+      padding: 0 3px 2px;
+      outline: none;
+      text-align: center;
+      vertical-align: baseline;
+      color: var(--ink);
+      border-radius: 0;
+      -webkit-appearance: none;
+      transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+      font-size: max(1em, 16px);
+    }
+
+    .blank-input:focus {
+      border-bottom-color: var(--brick);
+      background-color: rgba(139, 33, 24, 0.04);
+    }
+
+    .blank-input.is-correct {
+      border-bottom-color: var(--correct-fg);
+      background-color: var(--correct-bg);
+      color: var(--correct-fg);
+    }
+
+    .blank-input.is-incorrect {
+      border-bottom-color: var(--incorrect-fg);
+      background-color: var(--incorrect-bg);
+      color: var(--incorrect-fg);
+    }
+
+    .blank-input:disabled { cursor: default; opacity: 1; }
+
+    /* ── SUBMIT AREA ─────────────────────────────────────── */
+    .submit-area {
+      margin-top: 2rem;
+      border-top: 3px double var(--ink);
+      padding-top: 1.6rem;
+      text-align: center;
+    }
+
+    /* ── SCORE CARD ──────────────────────────────────────── */
+    .score-card {
+      display: none;
+      border: 2px solid var(--ink);
+      background: var(--cream);
+      padding: 1.6rem 1.4rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .score-card.visible { display: block; }
+
+    .score-pts {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(3rem, 8vw, 4rem);
+      font-weight: 900;
+      color: var(--brick);
+      line-height: 1;
+    }
+
+    .score-label {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.17em;
+      color: var(--muted);
+      margin-top: 0.1rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .score-emojis {
+      font-size: 1.7rem;
+      letter-spacing: 0.2em;
+      margin-bottom: 0.8rem;
+    }
+
+    .score-msg {
+      font-style: italic;
+      color: #444;
+      font-size: 1rem;
+    }
+
+    /* ── BUTTONS ─────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.8rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 0.72rem 1.9rem;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      background: none;
+      vertical-align: middle;
+    }
+
+    .btn-primary {
+      background: var(--brick);
+      border-color: var(--brick);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--brick-hover);
+      border-color: var(--brick-hover);
+    }
+
+    .btn-primary:disabled {
+      background: #aaa;
+      border-color: #aaa;
+      cursor: default;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border-color: var(--ink);
+      color: var(--ink);
+    }
+
+    .btn-outline:hover {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .btn-share {
+      background: transparent;
+      border-color: var(--brick);
+      color: var(--brick);
+    }
+
+    .btn-share:hover {
+      background: var(--brick);
+      color: #fff;
+    }
+
+    /* ── SHARE ROW ───────────────────────────────────────── */
+    .share-row {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .share-row.visible { display: flex; }
+
+    .copy-notice {
+      font-size: 0.85rem;
+      font-style: italic;
+      color: var(--correct-fg);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .copy-notice.show { opacity: 1; }
+
+    /* ── FOOTER ──────────────────────────────────────────── */
+    .site-footer {
+      max-width: 700px;
+      margin: 2.5rem auto 0;
+      padding: 1.4rem;
+      text-align: center;
+      border-top: 1px solid #ddd;
+    }
+
+    .footer-admin {
+      background: none;
+      border: none;
+      color: #c0c0c0;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .footer-admin:hover { color: #888; }
+
+    /* ── NO-QUIZ STATE ───────────────────────────────────── */
+    .no-quiz {
+      text-align: center;
+      padding: 3.5rem 1rem;
+    }
+
+    .no-quiz p {
+      font-style: italic;
+      color: var(--muted);
+      font-size: 1.1rem;
+      margin-bottom: 1.4rem;
+    }
+
+    /* ── AUTH MODAL ──────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 28, 28, 0.6);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--paper);
+      width: 100%;
+      max-width: 420px;
+      border: 2px solid var(--ink);
+      position: relative;
+      animation: modal-in 0.2s ease;
+    }
+
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-masthead {
+      background: var(--ink);
+      color: #fff;
+      padding: 1.2rem 1.4rem 1rem;
+      text-align: center;
+      border-bottom: 3px solid var(--brick);
+    }
+
+    .modal-masthead h2 {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      font-weight: 400;
+      margin-bottom: 0.25rem;
+    }
+
+    .modal-masthead p {
+      font-size: 0.82rem;
+      font-style: italic;
+      opacity: 0.65;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 0.7rem;
+      right: 0.9rem;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.3rem;
+      cursor: pointer;
+      opacity: 0.6;
+      line-height: 1;
+      font-family: Georgia, serif;
+    }
+
+    .modal-close:hover { opacity: 1; }
+
+    .modal-tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .modal-tab {
+      flex: 1;
+      background: none;
+      border: none;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.75rem;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .modal-tab.active {
+      color: var(--brick);
+      border-bottom-color: var(--brick);
+    }
+
+    .modal-tab:hover:not(.active) { color: var(--ink); }
+
+    .modal-body {
+      padding: 1.4rem;
+    }
+
+    .modal-form { display: none; }
+    .modal-form.active { display: block; }
+
+    .modal-field {
+      margin-bottom: 1rem;
+    }
+
+    .modal-label {
+      display: block;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: #444;
+      margin-bottom: 0.35rem;
+    }
+
+    .modal-input {
+      width: 100%;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 1rem;
+      color: var(--ink);
+      border: 1px solid #ccc;
+      padding: 0.5rem 0.75rem;
+      background: #fff;
+      outline: none;
+      border-radius: 0;
+      transition: border-color 0.15s;
+    }
+
+    .modal-input:focus { border-color: var(--brick); }
+
+    .modal-error {
+      font-size: 0.82rem;
+      color: var(--incorrect-fg);
+      font-style: italic;
+      min-height: 1.2em;
+      margin-bottom: 0.75rem;
+    }
+
+    .modal-submit {
+      width: 100%;
+      display: block;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.8rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 0.75rem;
+      border: 2px solid var(--brick);
+      background: var(--brick);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .modal-submit:hover:not(:disabled) { background: var(--brick-hover); border-color: var(--brick-hover); }
+    .modal-submit:disabled { background: #aaa; border-color: #aaa; cursor: default; }
+
+    .modal-footer-note {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 0.85rem;
+    }
+
+    .modal-switch-link {
+      background: none;
+      border: none;
+      color: var(--brick);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: inherit;
+      font-style: italic;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    /* success state */
+    .modal-success {
+      display: none;
+      text-align: center;
+      padding: 1.5rem 1rem;
+    }
+
+    .modal-success.show { display: block; }
+
+    .modal-success-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .modal-success p {
+      font-style: italic;
+      color: var(--correct-fg);
+      font-size: 0.95rem;
+    }
+
+    /* ── ADMIN ───────────────────────────────────────────── */
+    .admin-header {
+      background: var(--ink);
+      color: #fff;
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .admin-header h1 {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 1.15rem;
+      letter-spacing: 0.06em;
+    }
+
+    .admin-header p {
+      font-size: 0.8rem;
+      opacity: 0.6;
+      font-style: italic;
+      margin-top: 0.2rem;
+    }
+
+    .admin-body {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 2rem 1.4rem 3rem;
+    }
+
+    .form-group { margin-bottom: 1.5rem; }
+
+    .form-label {
+      display: block;
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.76rem;
+      letter-spacing: 0.12em;
+      color: #444;
+      margin-bottom: 0.4rem;
+    }
+
+    .form-control {
+      width: 100%;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 1rem;
+      color: var(--ink);
+      border: 1px solid #ccc;
+      padding: 0.5rem 0.8rem;
+      background: #fff;
+      outline: none;
+      border-radius: 0;
+      transition: border-color 0.15s;
+    }
+
+    .form-control:focus { border-color: var(--brick); }
+
+    textarea.form-control {
+      min-height: 190px;
+      resize: vertical;
+      line-height: 1.65;
+    }
+
+    .form-hint {
+      font-size: 0.8rem;
+      color: #999;
+      font-style: italic;
+      margin-top: 0.3rem;
+    }
+
+    .count-warn {
+      font-size: 0.82rem;
+      color: #B8860B;
+      font-style: italic;
+      margin-top: 0.3rem;
+    }
+
+    .admin-preview-box {
+      display: none;
+      background: var(--cream);
+      border: 1px solid #ddd;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .admin-preview-box.visible { display: block; }
+
+    .preview-section-label {
+      font-family: 'Playfair Display SC', Georgia, serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin-bottom: 0.55rem;
+    }
+
+    .answer-tags { margin-bottom: 0.85rem; }
+
+    .answer-tag {
+      display: inline-block;
+      border: 1px solid var(--brick);
+      color: var(--brick);
+      font-size: 0.82rem;
+      padding: 0.15rem 0.5rem;
+      margin: 0.15rem 0.15rem 0.15rem 0;
+    }
+
+    .preview-text-box {
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.75;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      padding: 0.8rem 1rem;
+      color: var(--ink);
+    }
+
+    .preview-blank {
+      display: inline-block;
+      border-bottom: 2px solid var(--ink);
+      color: transparent;
+      vertical-align: bottom;
+      padding: 0 1px;
+      user-select: none;
+    }
+
+    .admin-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    .save-notice {
+      display: none;
+      font-style: italic;
+      color: var(--correct-fg);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    .save-notice.show { display: block; }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 540px) {
+      html { font-size: 16px; }
+
+      .mh-side { display: none; }
+      .mh-title { font-size: 2.4rem; }
+
+      .article-body { font-size: 1.1rem; }
+
+      .article-body > p:first-child::first-letter { font-size: 3.4em; }
+
+      .btn { width: 100%; display: block; }
+
+      .share-row { flex-direction: column; gap: 0.5rem; }
+
+      .admin-actions { flex-direction: column; }
+      .admin-actions .btn { margin: 0; }
+
+      .modal-tab { font-size: 0.68rem; padding: 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     AUTH MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="auth-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Sign in">
+
+  <div class="modal-box">
+    <div class="modal-masthead">
+      <button class="modal-close" onclick="App.closeAuthModal()" aria-label="Close">&times;</button>
+      <h2>This Happened</h2>
+      <p id="modal-subtitle">Sign in to save your score</p>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-login"  onclick="App.switchTab('login')">Log In</button>
+      <button class="modal-tab"        id="tab-signup" onclick="App.switchTab('signup')">Sign Up</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Login form -->
+      <form class="modal-form active" id="form-login" novalidate>
+        <div class="modal-field">
+          <label class="modal-label" for="login-email">Email</label>
+          <input class="modal-input" type="email" id="login-email" autocomplete="email" required>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="login-password">Password</label>
+          <input class="modal-input" type="password" id="login-password" autocomplete="current-password" required>
+        </div>
+        <div class="modal-error" id="login-error"></div>
+        <button type="submit" class="modal-submit" id="login-submit">Log In</button>
+        <p class="modal-footer-note">
+          No account yet?
+          <button type="button" class="modal-switch-link" onclick="App.switchTab('signup')">Sign up free</button>
+        </p>
+      </form>
+
+      <!-- Sign-up form -->
+      <form class="modal-form" id="form-signup" novalidate>
+        <div class="modal-field">
+          <label class="modal-label" for="signup-username">Username</label>
+          <input class="modal-input" type="text" id="signup-username" autocomplete="username" required>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="signup-email">Email</label>
+          <input class="modal-input" type="email" id="signup-email" autocomplete="email" required>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="signup-password">Password</label>
+          <input class="modal-input" type="password" id="signup-password" autocomplete="new-password" required>
+        </div>
+        <div class="modal-error" id="signup-error"></div>
+        <button type="submit" class="modal-submit" id="signup-submit">Create Account</button>
+        <p class="modal-footer-note">
+          Already have an account?
+          <button type="button" class="modal-switch-link" onclick="App.switchTab('login')">Log in</button>
+        </p>
+      </form>
+
+      <!-- Success state (shown after signup) -->
+      <div class="modal-success" id="modal-success">
+        <div class="modal-success-icon">&#10003;</div>
+        <p>Account created. Signing you in&hellip;</p>
+      </div>
+
+    </div><!-- /modal-body -->
+  </div><!-- /modal-box -->
+
+</div><!-- /auth-modal -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     QUIZ PAGE
+══════════════════════════════════════════════════════════ -->
+<div id="quiz-page" class="page active">
+
+  <!-- Auth bar -->
+  <div class="auth-bar">
+    <div class="auth-bar-inner" id="auth-bar-content">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <header>
+    <div class="masthead">
+      <hr class="mh-rule-top">
+      <div class="mh-inner">
+        <div class="mh-side" id="mh-date-left">Sunday<br>March 8</div>
+        <div class="mh-center">
+          <div class="mh-title">This Happened</div>
+          <div class="mh-sub">The Daily News Quiz</div>
+        </div>
+        <div class="mh-side right" id="mh-pts-right">5 Blanks<br>25 Points</div>
+      </div>
+      <hr class="mh-rule-mid">
+    </div>
+    <div class="double-rule"></div>
+    <div class="ticker" id="ticker">Fill in the Blanks &nbsp;·&nbsp; 5 Points Each &nbsp;·&nbsp; 25 Points Total</div>
+    <div class="double-rule"></div>
+  </header>
+
+  <main class="wrap">
+    <div class="timer-bar">
+      <span class="timer-label">Time</span>
+      <span id="timer-display">0:00</span>
+    </div>
+    <section class="quiz-section">
+
+      <div id="quiz-main">
+        <!-- injected by JS -->
+      </div>
+
+      <div class="submit-area" id="submit-area">
+        <div class="score-card" id="score-card">
+          <div class="score-pts" id="score-pts">—</div>
+          <div class="score-label">Points out of 25</div>
+          <div class="score-emojis" id="score-emojis"></div>
+          <div class="score-msg" id="score-msg"></div>
+        </div>
+
+        <button class="btn btn-primary" id="submit-btn">Submit Answers</button>
+
+        <div class="share-row" id="share-row">
+          <button class="btn btn-share" id="share-btn">Share Score</button>
+          <span class="copy-notice" id="copy-notice">Copied to clipboard!</span>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <button class="footer-admin" onclick="App.showAdmin()">Admin</button>
+  </footer>
+
+</div><!-- /quiz-page -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     ADMIN PAGE
+══════════════════════════════════════════════════════════ -->
+<div id="admin-page" class="page">
+
+  <div class="admin-header">
+    <div>
+      <h1>This Happened — Admin</h1>
+      <p>Configure the daily quiz</p>
+    </div>
+  </div>
+
+  <div class="admin-body">
+
+    <div class="form-group">
+      <label class="form-label" for="a-date">Quiz Date</label>
+      <input type="date" class="form-control" id="a-date">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-headline">
+        Headline <span style="font-weight:normal;opacity:0.55">(optional)</span>
+      </label>
+      <input type="text" class="form-control" id="a-headline"
+             placeholder="e.g., A Week That Shook the World">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-deck">
+        Deck / Subheading <span style="font-weight:normal;opacity:0.55">(optional)</span>
+      </label>
+      <input type="text" class="form-control" id="a-deck"
+             placeholder="e.g., Five blanks. One story. Did you catch it?">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-text">Quiz Text</label>
+      <textarea class="form-control" id="a-text"
+        placeholder="Write the article text here. Place each answer in [square brackets].&#10;&#10;Example:&#10;The [president] signed the bill on [Thursday], a turning point in the debate over [immigration] reform. Officials from [twelve] nations attended alongside the [Secretary of State].&#10;&#10;Tip: Separate paragraphs with a blank line."></textarea>
+      <p class="form-hint">Wrap each answer in [square brackets]. Aim for exactly 5 blanks. Separate paragraphs with a blank line.</p>
+      <div class="count-warn" id="a-count-warn" style="display:none"></div>
+    </div>
+
+    <!-- Live preview -->
+    <div class="admin-preview-box" id="a-preview-box">
+      <div class="preview-section-label">Detected Answers</div>
+      <div class="answer-tags" id="a-answer-tags"></div>
+      <div class="preview-section-label" style="margin-top:0.8rem">Preview</div>
+      <div class="preview-text-box" id="a-preview-text"></div>
+    </div>
+
+    <div class="admin-actions">
+      <button class="btn btn-primary" id="a-save-btn">Save Quiz</button>
+      <button class="btn btn-outline" onclick="App.showQuiz()">Back to Quiz</button>
+    </div>
+    <div class="save-notice" id="a-save-notice">Quiz saved — head back to see it live.</div>
+
+  </div><!-- /admin-body -->
+
+</div><!-- /admin-page -->
+
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   SUPABASE SETUP
+   Run the following SQL once in your Supabase project → SQL Editor
+   ═══════════════════════════════════════════════════════════════
+
+   -- 1. User profiles (extends the built-in auth.users table)
+   CREATE TABLE public.profiles (
+     id          UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+     username    TEXT UNIQUE NOT NULL,
+     created_at  TIMESTAMPTZ DEFAULT NOW()
+   );
+
+   -- Auto-create a profile row when a new user signs up
+   CREATE OR REPLACE FUNCTION public.handle_new_user()
+   RETURNS TRIGGER AS $$
+   BEGIN
+     INSERT INTO public.profiles (id, username)
+     VALUES (NEW.id, NEW.raw_user_meta_data->>'username');
+     RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+   CREATE TRIGGER on_auth_user_created
+     AFTER INSERT ON auth.users
+     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+   -- 2. Quiz submissions
+   CREATE TABLE public.submissions (
+     id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     user_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+     quiz_date     DATE NOT NULL,
+     score         INTEGER NOT NULL CHECK (score >= 0),
+     time_seconds  INTEGER NOT NULL CHECK (time_seconds >= 0),
+     answers       JSONB,
+     submitted_at  TIMESTAMPTZ DEFAULT NOW(),
+     UNIQUE (user_id, quiz_date)
+   );
+
+   -- 3. Row Level Security
+   ALTER TABLE public.profiles   ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+
+   CREATE POLICY "Anyone can read profiles"
+     ON public.profiles FOR SELECT USING (true);
+
+   CREATE POLICY "Users can read own submissions"
+     ON public.submissions FOR SELECT USING (auth.uid() = user_id);
+
+   CREATE POLICY "Users can insert own submissions"
+     ON public.submissions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+   ── IMPORTANT: In Supabase → Authentication → Settings ──────────
+   Disable "Enable email confirmations" while in development so
+   users are signed in immediately after registering.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── SUPABASE CONFIG — replace with your project values ─── */
+const SUPABASE_URL      = 'https://yejhhokjbgmjfzgjeppp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inllamhob2tqYmdtamZ6Z2plcHBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTQ0NDIsImV4cCI6MjA4ODU5MDQ0Mn0.ZGhiDZi2-EnxQ5hf3Bi9aRO5FY3mrFbVkXBO1uYS5Zk';
+
+// Only initialise Supabase when real credentials are present.
+// Without them the quiz works fully; auth and score-saving are disabled.
+const SUPABASE_READY = SUPABASE_URL.startsWith('https://');
+const db = SUPABASE_READY
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+/* ═══════════════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════════════ */
+const App = (() => {
+  'use strict';
+
+  const STORAGE_KEY = 'thisHappened_v1';
+
+  /* ─── DEFAULT DEMO QUIZ ───────────────────────────── */
+  const DEMO = {
+    date: '2026-03-08',
+    headline: 'A Week in Review',
+    deck: 'Five blanks. One story. How closely were you paying attention?',
+    text: 'The [president] of the United States signed an executive order on [Monday], directing all federal agencies to cut energy consumption by [fifteen] percent within a decade. The move came as a divided [Senate] passed a sweeping new infrastructure bill — the most ambitious public works package since the [New Deal].'
+  };
+
+  /* ─── LOCAL DATA ────────────────────────────────────── */
+  function load() {
+    try {
+      const d = localStorage.getItem(STORAGE_KEY);
+      return d ? JSON.parse(d) : DEMO;
+    } catch(e) { return DEMO; }
+  }
+
+  function saveLocal(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  /* ─── NUMBER WORD ↔ DIGIT EQUIVALENTS ──────────────── */
+  const WORD_TO_NUM = {
+    'zero':'0','one':'1','two':'2','three':'3','four':'4','five':'5',
+    'six':'6','seven':'7','eight':'8','nine':'9','ten':'10',
+    'eleven':'11','twelve':'12','thirteen':'13','fourteen':'14',
+    'fifteen':'15','sixteen':'16','seventeen':'17','eighteen':'18',
+    'nineteen':'19','twenty':'20','thirty':'30','forty':'40',
+    'fifty':'50','sixty':'60','seventy':'70','eighty':'80','ninety':'90',
+    'hundred':'100','thousand':'1,000','million':'1,000,000','billion':'1,000,000,000'
+  };
+
+  const NUM_TO_WORD = {};
+  Object.entries(WORD_TO_NUM).forEach(([w, n]) => { NUM_TO_WORD[n] = w; });
+
+  function getAlternates(answer) {
+    const a = answer.toLowerCase();
+    const alts = new Set([a]);
+    if (WORD_TO_NUM[a]) alts.add(WORD_TO_NUM[a]);
+    if (NUM_TO_WORD[a]) alts.add(NUM_TO_WORD[a]);
+    return [...alts];
+  }
+
+  function isCorrect(typed, answer) {
+    return getAlternates(answer).includes(typed.toLowerCase());
+  }
+
+  /* ─── UTILS ─────────────────────────────────────────── */
+  function fmtLong(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d)
+      .toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' })
+      .toUpperCase();
+  }
+
+  function fmtShort(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return [
+      dt.toLocaleDateString('en-US', { weekday:'long' }).toUpperCase(),
+      dt.toLocaleDateString('en-US', { month:'long', day:'numeric' }).toUpperCase()
+    ];
+  }
+
+  function todayISO() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  function splitText(text) {
+    return text.split(/\[([^\]]+)\]/g);
+  }
+
+  function escHtml(str) {
+    return str
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function scoreMsg(score, max) {
+    const r = score / max;
+    if (r === 1)  return 'Perfect score. You didn\'t miss a word.';
+    if (r >= 0.8) return 'Impressive — you were paying close attention.';
+    if (r >= 0.6) return 'Not bad. A few details slipped through.';
+    if (r >= 0.4) return 'The news moves fast. Keep reading.';
+    return 'Tougher than it looked. Try again tomorrow.';
+  }
+
+  /* ─── AUTH STATE ─────────────────────────────────────── */
+  let currentUser    = null;
+  let currentProfile = null;
+  let pendingSubmit  = false;
+
+  async function initAuth() {
+    if (!db) { updateAuthBar(); return; }
+    try {
+      const { data: { session } } = await db.auth.getSession();
+      await setUser(session?.user ?? null);
+    } catch(e) {
+      updateAuthBar();
+      return;
+    }
+    db.auth.onAuthStateChange(async (_event, session) => {
+      await setUser(session?.user ?? null);
+      if (currentUser && pendingSubmit) {
+        pendingSubmit = false;
+        closeAuthModal();
+        doSubmit();
+      }
+    });
+  }
+
+  async function setUser(user) {
+    currentUser = user;
+    if (user && db) {
+      const { data } = await db.from('profiles').select('username').eq('id', user.id).single();
+      currentProfile = data;
+    } else {
+      currentProfile = null;
+    }
+    updateAuthBar();
+  }
+
+  function updateAuthBar() {
+    const bar = document.getElementById('auth-bar-content');
+    if (!bar) return;
+    if (currentUser) {
+      const name = currentProfile?.username || currentUser.email;
+      bar.innerHTML = `
+        <span class="auth-bar-user">Signed in as <strong>${escHtml(name)}</strong></span>
+        <span class="auth-bar-divider">|</span>
+        <button class="auth-bar-btn" onclick="App.handleLogout()">Log Out</button>`;
+    } else {
+      bar.innerHTML = `
+        <button class="auth-bar-btn" onclick="App.showAuthModal('login')">Log In</button>
+        <span class="auth-bar-divider">|</span>
+        <button class="auth-bar-btn signup" onclick="App.showAuthModal('signup')">Sign Up</button>`;
+    }
+  }
+
+  /* ─── AUTH MODAL ─────────────────────────────────────── */
+  function showAuthModal(tab) {
+    document.getElementById('auth-modal').classList.add('open');
+    switchTab(tab || 'login');
+    clearErrors();
+  }
+
+  function closeAuthModal() {
+    document.getElementById('auth-modal').classList.remove('open');
+    clearErrors();
+    document.getElementById('modal-success').classList.remove('show');
+    document.getElementById('form-login').classList.add('active');
+    document.getElementById('form-signup').classList.remove('active');
+  }
+
+  function switchTab(tab) {
+    document.getElementById('form-login').classList.toggle('active',  tab === 'login');
+    document.getElementById('form-signup').classList.toggle('active', tab === 'signup');
+    document.getElementById('tab-login').classList.toggle('active',   tab === 'login');
+    document.getElementById('tab-signup').classList.toggle('active',  tab === 'signup');
+    clearErrors();
+  }
+
+  function clearErrors() {
+    document.getElementById('login-error').textContent  = '';
+    document.getElementById('signup-error').textContent = '';
+  }
+
+  function setModalSubtitle(text) {
+    document.getElementById('modal-subtitle').textContent = text;
+  }
+
+  /* ─── AUTH HANDLERS ──────────────────────────────────── */
+  async function handleLogin(e) {
+    e.preventDefault();
+    const btn   = document.getElementById('login-submit');
+    const errEl = document.getElementById('login-error');
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-password').value;
+
+    errEl.textContent = '';
+    if (!db) { errEl.textContent = 'Database not configured yet.'; return; }
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    const { error } = await db.auth.signInWithPassword({ email, password: pass });
+
+    btn.disabled = false;
+    btn.textContent = 'Log In';
+
+    if (error) {
+      errEl.textContent = 'Incorrect email or password. Please try again.';
+    }
+    // On success, onAuthStateChange fires and handles the rest
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    const btn      = document.getElementById('signup-submit');
+    const errEl    = document.getElementById('signup-error');
+    const username = document.getElementById('signup-username').value.trim();
+    const email    = document.getElementById('signup-email').value.trim();
+    const pass     = document.getElementById('signup-password').value;
+
+    errEl.textContent = '';
+
+    if (!username) { errEl.textContent = 'Please choose a username.'; return; }
+    if (username.length < 3) { errEl.textContent = 'Username must be at least 3 characters.'; return; }
+    if (pass.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+
+    if (!db) { errEl.textContent = 'Database not configured yet.'; return; }
+    btn.disabled = true;
+    btn.textContent = 'Creating account…';
+
+    const { error } = await db.auth.signUp({
+      email,
+      password: pass,
+      options: { data: { username } }
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+
+    if (error) {
+      errEl.textContent = error.message.includes('already')
+        ? 'An account with this email already exists.'
+        : error.message;
+      return;
+    }
+
+    // Show success state; onAuthStateChange will fire and close the modal
+    document.getElementById('form-signup').classList.remove('active');
+    document.getElementById('modal-success').classList.add('show');
+  }
+
+  async function handleLogout() {
+    if (db) await db.auth.signOut();
+  }
+
+  /* ─── TIMER ──────────────────────────────────────────── */
+  const TIMER_KEY = 'thisHappened_timer_v1';
+  let timer = { interval: null, startTime: null, stopped: false };
+
+  function initTimer() {
+    clearInterval(timer.interval);
+    const el = document.getElementById('timer-display');
+    el.classList.remove('stopped');
+
+    const quizDate = currentQuestion?.quiz_date || todayISO();
+    const raw = localStorage.getItem(TIMER_KEY);
+
+    if (raw) {
+      try {
+        const t = JSON.parse(raw);
+        if (t.date === quizDate) {
+          if (t.stopped) {
+            // Quiz resets on refresh — clear the old stopped timer and fall through to start fresh
+            localStorage.removeItem(TIMER_KEY);
+          } else {
+            // Active timer for today — resume it
+            timer = { interval: null, startTime: t.startTime, stopped: false };
+            tick();
+            return;
+          }
+        }
+      } catch(e) {}
+    }
+
+    timer = { interval: null, startTime: Date.now(), stopped: false };
+    localStorage.setItem(TIMER_KEY, JSON.stringify({
+      date: quizDate, startTime: timer.startTime, stopped: false
+    }));
+    tick();
+  }
+
+  function tick() {
+    renderTime(Date.now() - timer.startTime);
+    timer.interval = setInterval(() => {
+      if (timer.stopped) { clearInterval(timer.interval); return; }
+      renderTime(Date.now() - timer.startTime);
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timer.stopped) return;
+    clearInterval(timer.interval);
+    timer.stopped = true;
+    const elapsed = Date.now() - timer.startTime;
+    localStorage.setItem(TIMER_KEY, JSON.stringify({
+      date: currentQuestion?.quiz_date || todayISO(), startTime: timer.startTime,
+      stopped: true, elapsedAtStop: elapsed
+    }));
+    renderTime(elapsed);
+    document.getElementById('timer-display').classList.add('stopped');
+    return elapsed;
+  }
+
+  function renderTime(ms) {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const el = document.getElementById('timer-display');
+    if (el) el.textContent = `${m}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  /* ─── QUIZ STATE ─────────────────────────────────────── */
+  let quiz = {
+    submitted: false,
+    inputs: [],
+    results: [],
+    score: 0,
+    max: 0
+  };
+
+  let currentQuestion = null;
+
+  /* ─── RENDER QUIZ ────────────────────────────────────── */
+  async function renderQuiz() {
+    quiz = { submitted: false, inputs: [], results: [], score: 0, max: 0 };
+
+    // Fetch today's published question from Supabase
+    if (SUPABASE_READY) {
+      const { data } = await db
+        .from('questions')
+        .select('*')
+        .eq('quiz_date', todayISO())
+        .eq('status', 'published')
+        .maybeSingle();
+      currentQuestion = data || null;
+    }
+
+    const data = currentQuestion;
+
+    if (data?.quiz_date) {
+      const [wd, md] = fmtShort(data.quiz_date);
+      document.getElementById('mh-date-left').innerHTML = wd + '<br>' + md;
+    }
+
+    const main = document.getElementById('quiz-main');
+    main.innerHTML = '';
+
+    if (!data || !data.body || !data.body.trim()) {
+      main.innerHTML = `
+        <div class="no-quiz">
+          <p>No quiz has been published for today.</p>
+        </div>`;
+      document.getElementById('submit-area').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('submit-area').style.display = '';
+
+    const blankCount = (data.body.match(/\[[^\]]+\]/g) || []).length;
+    document.getElementById('mh-pts-right').innerHTML =
+      blankCount + ' Blank' + (blankCount !== 1 ? 's' : '') + '<br>' + (blankCount * 5) + ' Points';
+
+    if (data.headline) {
+      const h = document.createElement('h2');
+      h.className = 'quiz-headline';
+      h.textContent = data.headline;
+      main.appendChild(h);
+    }
+
+    if (data.deck) {
+      const p = document.createElement('p');
+      p.className = 'quiz-deck';
+      p.textContent = data.deck;
+      main.appendChild(p);
+    }
+
+    const byline = document.createElement('div');
+    byline.className = 'quiz-byline';
+    byline.innerHTML = `
+      <span class="byline-label">Quiz</span>
+      <span class="byline-dot">·</span>
+      <span>${fmtLong(data.quiz_date)}</span>
+      <span class="byline-dot">·</span>
+      <span>Fill in the blanks</span>`;
+    main.appendChild(byline);
+
+    const body = document.createElement('div');
+    body.className = 'article-body';
+
+    const paragraphs = data.body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    let ansIdx = 0;
+
+    paragraphs.forEach(paraText => {
+      const p = document.createElement('p');
+      const parts = splitText(paraText);
+      parts.forEach((chunk, i) => {
+        if (i % 2 === 0) {
+          if (chunk) p.appendChild(document.createTextNode(chunk));
+        } else {
+          const answer = chunk;
+          const input = makeInput(answer, ansIdx++);
+          quiz.inputs.push({ el: input, answer: answer.toLowerCase() });
+          p.appendChild(input);
+        }
+      });
+      body.appendChild(p);
+    });
+
+    main.appendChild(body);
+    quiz.max = quiz.inputs.length * 5;
+    resetSubmitUI();
+    initTimer();
+  }
+
+  function makeInput(answer, idx) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'blank-input';
+    const alts = getAlternates(answer);
+    const maxLen = Math.max(...alts.map(a => a.length));
+    input.maxLength = maxLen;
+    input.autocomplete = 'off';
+    input.autocorrect = 'off';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+    input.setAttribute('aria-label', `Blank ${idx + 1}: ${answer.length} character${answer.length !== 1 ? 's' : ''}`);
+
+    const extra = answer.length <= 3 ? 1.6 : answer.length <= 6 ? 1.2 : 0.8;
+    input.style.width = `calc(${answer.length + extra}ch)`;
+
+    input.addEventListener('input', () => {
+      if (quiz.submitted) return;
+      const typed = input.value.toLowerCase();
+      input.classList.remove('is-correct', 'is-incorrect');
+      if (isCorrect(typed, answer)) {
+        input.classList.add('is-correct');
+      } else if (alts.some(a => typed.length === a.length)) {
+        input.classList.add('is-incorrect');
+      }
+    });
+
+    return input;
+  }
+
+  function resetSubmitUI() {
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = false;
+    btn.textContent = 'Submit Answers';
+    document.getElementById('score-card').classList.remove('visible');
+    document.getElementById('share-row').classList.remove('visible');
+    document.getElementById('ticker').textContent =
+      'Fill in the Blanks \u00a0·\u00a0 5 Points Each \u00a0·\u00a0 25 Points Total';
+  }
+
+  /* ─── SUBMIT ─────────────────────────────────────────── */
+  function handleSubmit() {
+    if (quiz.submitted) return;
+
+    // Gate: must be logged in
+    if (!currentUser) {
+      pendingSubmit = true;
+      setModalSubtitle('Sign in to save your score');
+      showAuthModal('login');
+      return;
+    }
+
+    doSubmit();
+  }
+
+  function doSubmit() {
+    if (quiz.submitted) return;
+    quiz.submitted = true;
+
+    const elapsedMs = stopTimer();
+    const timeSeconds = Math.floor((elapsedMs ?? (Date.now() - timer.startTime)) / 1000);
+
+    let score = 0;
+    const results = [];
+    const answerLog = [];
+
+    quiz.inputs.forEach(({ el, answer }) => {
+      el.disabled = true;
+      const typed = el.value.toLowerCase();
+      const correct = isCorrect(typed, answer);
+      if (correct) score += 5;
+      results.push(correct);
+      answerLog.push({ answer, given: el.value, correct });
+
+      el.classList.remove('is-correct', 'is-incorrect');
+      el.classList.add(correct ? 'is-correct' : 'is-incorrect');
+      if (!correct) el.value = answer;
+    });
+
+    quiz.score   = score;
+    quiz.results = results;
+    quiz.max     = quiz.inputs.length * 5;
+
+    document.getElementById('ticker').textContent =
+      `Your Score: ${score} / ${quiz.max} Points`;
+
+    document.getElementById('score-pts').textContent    = score;
+    document.getElementById('score-emojis').textContent =
+      results.map(r => r ? '🟩' : '🟥').join('\u2009');
+    document.getElementById('score-msg').textContent    = scoreMsg(score, quiz.max);
+    document.getElementById('score-card').classList.add('visible');
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Submitted';
+
+    document.getElementById('share-row').classList.add('visible');
+    document.getElementById('score-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Save to Supabase
+    saveSubmission(score, timeSeconds, answerLog);
+  }
+
+  /* ─── SAVE SUBMISSION ────────────────────────────────── */
+  async function saveSubmission(score, timeSeconds, answers) {
+    if (!db) return;
+    const quizDate = currentQuestion?.quiz_date || todayISO();
+
+    const { error } = await db.from('submissions').insert({
+      user_id:      currentUser.id,
+      quiz_date:    quizDate,
+      score,
+      time_seconds: timeSeconds,
+      answers
+    });
+
+    if (error) {
+      // Unique constraint: user already submitted today — not a problem, just ignore
+      if (!error.message.includes('unique')) {
+        console.warn('Submission error:', error.message);
+      }
+    }
+  }
+
+  /* ─── SHARE ──────────────────────────────────────────── */
+  function handleShare() {
+    const emojis = quiz.results.map(r => r ? '🟩' : '🟥').join('\u2009');
+    const text   = [
+      `This Happened \u2014 ${fmtLong(currentQuestion?.quiz_date || todayISO())}`,
+      `Score: ${quiz.score}/${quiz.max}`,
+      '',
+      emojis,
+      '',
+      'Play the daily news quiz'
+    ].join('\n');
+
+    const notice = document.getElementById('copy-notice');
+    const flash  = () => {
+      notice.classList.add('show');
+      setTimeout(() => notice.classList.remove('show'), 2800);
+    };
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(flash).catch(() => fallbackCopy(text, flash));
+    } else {
+      fallbackCopy(text, flash);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    if (cb) cb();
+  }
+
+  /* ─── ADMIN ──────────────────────────────────────────── */
+  function initAdmin() {
+    const data = load();
+    document.getElementById('a-date').value     = data.date     || todayISO();
+    document.getElementById('a-headline').value = data.headline || '';
+    document.getElementById('a-deck').value     = data.deck     || '';
+    document.getElementById('a-text').value     = data.text     || '';
+    document.getElementById('a-text').oninput   = livePreview;
+    document.getElementById('a-save-btn').onclick = handleSave;
+    livePreview();
+  }
+
+  function livePreview() {
+    const raw     = document.getElementById('a-text').value;
+    const answers = [];
+    const re = /\[([^\]]+)\]/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) answers.push(m[1]);
+
+    const previewBox = document.getElementById('a-preview-box');
+    const warn       = document.getElementById('a-count-warn');
+
+    if (!raw.trim()) {
+      previewBox.classList.remove('visible');
+      warn.style.display = 'none';
+      return;
+    }
+
+    if (answers.length !== 5) {
+      warn.style.display = 'block';
+      warn.textContent = answers.length === 0
+        ? 'No answers detected. Wrap answers in [square brackets].'
+        : `${answers.length} blank${answers.length !== 1 ? 's' : ''} detected — 5 recommended.`;
+    } else {
+      warn.style.display = 'none';
+    }
+
+    if (answers.length > 0) {
+      previewBox.classList.add('visible');
+      document.getElementById('a-answer-tags').innerHTML =
+        answers.map((a, i) => `<span class="answer-tag">${i + 1}. ${escHtml(a)}</span>`).join('');
+
+      const escaped    = escHtml(raw);
+      const previewHtml = escaped
+        .replace(/\n\n+/g, '<br><br>')
+        .replace(/\n/g, '<br>')
+        .replace(/\[([^\]]+)\]/g, (_, ans) => `<span class="preview-blank">${ans}</span>`);
+      document.getElementById('a-preview-text').innerHTML = previewHtml;
+    } else {
+      previewBox.classList.remove('visible');
+    }
+  }
+
+  function handleSave() {
+    const text = document.getElementById('a-text').value.trim();
+    if (!text) { alert('Please enter the quiz text.'); return; }
+    const answers = text.match(/\[[^\]]+\]/g);
+    if (!answers || answers.length === 0) {
+      alert('No answers detected. Wrap each answer in [square brackets].');
+      return;
+    }
+    saveLocal({
+      date:     document.getElementById('a-date').value || todayISO(),
+      headline: document.getElementById('a-headline').value.trim(),
+      deck:     document.getElementById('a-deck').value.trim(),
+      text
+    });
+    const notice = document.getElementById('a-save-notice');
+    notice.classList.add('show');
+    setTimeout(() => notice.classList.remove('show'), 4000);
+  }
+
+  /* ─── NAVIGATION ─────────────────────────────────────── */
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  function showQuiz() {
+    showPage('quiz-page');
+    renderQuiz();
+  }
+
+  function showAdmin() {
+    showPage('admin-page');
+    initAdmin();
+  }
+
+  /* ─── CLOSE MODAL ON OVERLAY CLICK ──────────────────── */
+  document.getElementById('auth-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('auth-modal')) {
+      pendingSubmit = false;
+      closeAuthModal();
+    }
+  });
+
+  /* ─── FORM SUBMIT LISTENERS ──────────────────────────── */
+  document.getElementById('form-login').addEventListener('submit',  handleLogin);
+  document.getElementById('form-signup').addEventListener('submit', handleSignup);
+
+  /* ─── BOOT ───────────────────────────────────────────── */
+  function init() {
+    document.getElementById('submit-btn').addEventListener('click', handleSubmit);
+    document.getElementById('share-btn').addEventListener('click', handleShare);
+    renderQuiz();   // runs immediately, no waiting
+    initAuth();     // runs in background, updates auth bar when ready
+  }
+
+  init();
+
+  return { showQuiz, showAdmin, showAuthModal, closeAuthModal, switchTab, handleLogout };
+})();
+</script>
+
+</body>
+</html>

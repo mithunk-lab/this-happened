@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quizmaster — This Happened</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-w:      220px;
+      --ink:            #1C1C1C;
+      --paper:          #FAFAF7;
+      --cream:          #F4EFE6;
+      --brick:          #8B2118;
+      --brick-hover:    #6E1A13;
+      --muted:          #666;
+      --border:         #E0DDD6;
+      --sidebar-bg:     #1C1C1C;
+      --sidebar-fg:     rgba(255,255,255,0.85);
+      --sidebar-muted:  rgba(255,255,255,0.4);
+      --published-fg:   #1B5E20;
+      --published-bg:   rgba(27,94,32,0.09);
+      --draft-bg:       rgba(0,0,0,0.05);
+    }
+
+    html { font-size: 16px; }
+    body { background: var(--cream); color: var(--ink); font-family: 'EB Garamond', Georgia, serif; min-height: 100vh; }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: flex; }
+
+    /* ── Login / Invite ── */
+    #page-login, #page-invite {
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      background: var(--ink);
+    }
+    .login-wrap { width: 100%; max-width: 380px; padding: 2.5rem 2rem; background: var(--paper); }
+    .login-masthead { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    .login-flag { font-family: 'Playfair Display', serif; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+    .login-title { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; }
+    .login-subtitle { font-size: 0.9rem; color: var(--muted); margin-top: 0.25rem; }
+    .login-form { display: flex; flex-direction: column; gap: 1rem; }
+
+    /* ── Fields ── */
+    .field { display: flex; flex-direction: column; gap: 0.3rem; }
+    .field label, .field-label { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .field-hint { font-size: 0.85rem; color: var(--muted); text-transform: none; letter-spacing: 0; font-style: italic; }
+    .field input, .field select, .field textarea {
+      padding: 0.55rem 0.7rem; border: 1px solid var(--border); background: #fff;
+      font-family: 'EB Garamond', Georgia, serif; font-size: 1rem; color: var(--ink); outline: none; transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ink); }
+    .field textarea { resize: vertical; line-height: 1.6; }
+    .field input[readonly] { background: var(--cream); color: var(--muted); }
+    .form-err { font-size: 0.88rem; color: var(--brick); min-height: 1.2em; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.5rem 1.1rem; font-family: 'EB Garamond', Georgia, serif;
+      font-size: 0.9rem; cursor: pointer; border: 1px solid transparent;
+      transition: background 0.15s, opacity 0.15s; white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary   { background: var(--brick); color: #fff; border-color: var(--brick); }
+    .btn-primary:hover:not(:disabled) { background: var(--brick-hover); border-color: var(--brick-hover); }
+    .btn-secondary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .btn-secondary:hover:not(:disabled) { opacity: 0.85; }
+    .btn-ghost     { background: transparent; color: var(--ink); border-color: var(--border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--cream); }
+    .btn-danger    { background: transparent; color: var(--brick); border-color: rgba(139,33,24,0.3); }
+    .btn-danger:hover:not(:disabled) { background: rgba(139,33,24,0.06); }
+    .btn-publish   { background: transparent; color: var(--published-fg); border-color: rgba(27,94,32,0.3); font-size: 0.82rem; padding: 0.3rem 0.7rem; }
+    .btn-publish:hover { background: var(--published-bg); }
+    .btn-unpublish { background: transparent; color: var(--muted); border-color: var(--border); font-size: 0.82rem; padding: 0.3rem 0.7rem; }
+    .btn-unpublish:hover { background: var(--cream); }
+    .btn-sm { font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+    .link-btn { background: none; border: none; color: var(--brick); cursor: pointer; font: inherit; text-decoration: underline; }
+
+    /* ── App layout ── */
+    #page-app { min-height: 100vh; align-items: stretch; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w); min-height: 100vh; background: var(--sidebar-bg);
+      display: flex; flex-direction: column; justify-content: space-between;
+      flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+    }
+    .sidebar-top { padding: 1.5rem 0 1rem; }
+    .sidebar-brand { padding: 0 1.4rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.8rem; }
+    .sidebar-flag { display: block; font-family: 'Playfair Display', serif; font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--sidebar-muted); }
+    .sidebar-name { display: block; font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 700; color: var(--sidebar-fg); margin-top: 0.15rem; }
+    .sidebar-nav { display: flex; flex-direction: column; }
+    .nav-item {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 1.4rem;
+      background: none; border: none; border-left: 2px solid transparent;
+      color: var(--sidebar-muted); font-family: 'EB Garamond', Georgia, serif;
+      font-size: 0.95rem; cursor: pointer; text-align: left; transition: color 0.15s, background 0.15s;
+    }
+    .nav-item:hover { color: var(--sidebar-fg); background: rgba(255,255,255,0.05); }
+    .nav-item.active { color: var(--sidebar-fg); background: rgba(255,255,255,0.07); border-left-color: var(--brick); }
+    .nav-icon { font-size: 0.75rem; opacity: 0.6; }
+    .sidebar-bottom { padding: 1.2rem 1.4rem; border-top: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-user { margin-bottom: 0.8rem; }
+    .sb-email { display: block; font-size: 0.78rem; color: var(--sidebar-muted); word-break: break-all; margin-top: 0.3rem; }
+    .role-badge { display: inline-block; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.15rem 0.45rem; border: 1px solid; }
+    .role-badge.role-admin  { color: #C9A84C; border-color: rgba(201,168,76,0.4); background: rgba(201,168,76,0.1); }
+    .role-badge.role-editor { color: var(--sidebar-muted); border-color: rgba(255,255,255,0.2); }
+    .team-info .role-badge.role-admin  { color: #7B5A00; border-color: rgba(123,90,0,0.3); background: rgba(201,168,76,0.12); }
+    .team-info .role-badge.role-editor { color: var(--muted); border-color: var(--border); background: transparent; }
+    .sidebar-logout {
+      background: none; border: 1px solid rgba(255,255,255,0.15); color: var(--sidebar-muted);
+      padding: 0.4rem 0.8rem; font-family: 'EB Garamond', Georgia, serif; font-size: 0.8rem;
+      cursor: pointer; width: 100%; text-align: center; transition: color 0.15s, border-color 0.15s;
+    }
+    .sidebar-logout:hover { color: var(--sidebar-fg); border-color: rgba(255,255,255,0.3); }
+
+    /* ── Password reset ── */
+    #page-reset { min-height: 100vh; align-items: center; justify-content: center; background: var(--ink); }
+
+    /* ── Main ── */
+    #main { flex: 1; padding: 2rem 2.5rem; min-width: 0; background: var(--paper); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.8rem; padding-bottom: 1rem; border-bottom: 2px solid var(--ink);
+      gap: 1rem; flex-wrap: wrap;
+    }
+    .section-header-left { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+    .section-header h2 { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; }
+
+    /* ── Date nav ── */
+    .date-nav { display: flex; align-items: center; gap: 0.3rem; }
+    .date-arrow {
+      background: none; border: 1px solid var(--border); color: var(--ink);
+      width: 1.8rem; height: 1.8rem; font-size: 1.1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .date-arrow:hover { background: var(--cream); }
+    #q-date-picker { border: 1px solid var(--border); padding: 0.3rem 0.5rem; font-family: 'EB Garamond', Georgia, serif; font-size: 0.9rem; background: #fff; color: var(--ink); }
+
+    /* ── Question cards ── */
+    .questions-list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .q-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; border: 1px solid var(--border); background: #fff; }
+    .q-card.q-published { border-left: 3px solid var(--published-fg); }
+    .q-card-main { flex: 1; min-width: 0; }
+    .q-card-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+    .q-status { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.15rem 0.45rem; }
+    .q-status.draft     { background: var(--draft-bg); color: var(--muted); }
+    .q-status.published { background: var(--published-bg); color: var(--published-fg); }
+    .q-category { font-size: 0.75rem; color: var(--muted); font-style: italic; }
+    .q-headline { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; line-height: 1.3; }
+    .q-deck { font-size: 0.88rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.4; }
+    .q-card-actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+    .slot-notice { font-size: 0.8rem; color: var(--muted); margin-top: 0.6rem; font-style: italic; }
+    .empty-state { padding: 2rem; text-align: center; color: var(--muted); border: 1px dashed var(--border); }
+
+    /* ── Categories ── */
+    .categories-body { max-width: 500px; }
+    .add-form { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .add-form input { flex: 1; padding: 0.55rem 0.7rem; border: 1px solid var(--border); font-family: 'EB Garamond', Georgia, serif; font-size: 1rem; outline: none; }
+    .add-form input:focus { border-color: var(--ink); }
+    .categories-list { display: flex; flex-direction: column; }
+    .cat-row { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 0; border-bottom: 1px solid var(--border); }
+    .cat-name { font-size: 1rem; }
+    .default-badge { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-left: 0.4rem; }
+
+    /* ── Team ── */
+    .team-list { display: flex; flex-direction: column; max-width: 600px; }
+    .team-row { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border); gap: 1rem; }
+    .team-info { display: flex; align-items: center; gap: 0.7rem; }
+    .team-email { font-size: 0.95rem; }
+    .you-label { font-size: 0.8rem; color: var(--muted); font-style: italic; }
+
+    /* ── Modals ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: flex-start; justify-content: center; padding: 2rem 1rem; overflow-y: auto; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--paper); width: 100%; max-width: 640px; margin: auto; display: flex; flex-direction: column; }
+    .editor-header { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .editor-header h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; }
+    .modal-close { background: none; border: none; font-size: 1rem; cursor: pointer; color: var(--muted); padding: 0.2rem; }
+    .modal-close:hover { color: var(--ink); }
+    .editor-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; max-height: 68vh; }
+    .editor-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .editor-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .editor-actions { display: flex; gap: 0.5rem; }
+
+    /* ── Body toolbar ── */
+    .body-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem; }
+    .btn-blank { background: var(--cream); border: 1px solid var(--border); color: var(--ink); padding: 0.25rem 0.65rem; font-family: 'EB Garamond', Georgia, serif; font-size: 0.8rem; cursor: pointer; transition: background 0.15s; }
+    .btn-blank:hover { background: var(--border); }
+
+    /* ── Blanks ── */
+    .blanks-detected { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; min-height: 1.8rem; padding: 0.4rem 0; }
+    .blanks-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .blank-chip { background: var(--cream); border: 1px solid var(--border); padding: 0.1rem 0.5rem; font-size: 0.85rem; font-style: italic; }
+    .no-blanks { color: var(--muted); font-style: italic; font-size: 0.88rem; }
+
+    /* ── Preview ── */
+    .btn-preview-toggle { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.8rem; font-family: 'EB Garamond', Georgia, serif; font-size: 0.85rem; cursor: pointer; align-self: flex-start; }
+    .btn-preview-toggle:hover { background: var(--cream); color: var(--ink); }
+    .preview-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+    .preview-card { border: 1px solid var(--border); padding: 1.2rem; background: #fff; }
+    .preview-headline { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .preview-deck { font-style: italic; color: var(--muted); margin-bottom: 0.8rem; font-size: 0.95rem; }
+    .preview-body { line-height: 1.9; font-size: 0.95rem; white-space: pre-wrap; }
+    .preview-blank input { border: none; border-bottom: 1px solid var(--ink); background: transparent; font-family: 'EB Garamond', Georgia, serif; font-size: inherit; text-align: center; color: var(--muted); }
+    .preview-blanks-count { font-size: 0.8rem; color: var(--muted); margin-top: 0.8rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+
+    /* ── Invite link ── */
+    .invite-box { max-width: 480px; }
+    .invite-link-box { display: flex; align-items: stretch; border: 1px solid var(--border); margin-top: 0.4rem; }
+    .invite-link-box code { flex: 1; padding: 0.6rem 0.8rem; font-family: monospace; font-size: 0.72rem; word-break: break-all; color: var(--muted); background: #fff; }
+    .invite-link-box .btn-ghost { border: none; border-left: 1px solid var(--border); }
+    .inv-note { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; font-style: italic; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="page-login" class="page active">
+  <div class="login-wrap">
+    <div class="login-masthead">
+      <div class="login-flag">This Happened</div>
+      <h1 class="login-title">Quizmaster</h1>
+      <p class="login-subtitle">Staff access only</p>
+    </div>
+    <form id="login-form" class="login-form">
+      <div class="field"><label for="l-email">Email</label><input type="email" id="l-email" required autocomplete="email"></div>
+      <div class="field"><label for="l-pass">Password</label><input type="password" id="l-pass" required autocomplete="current-password"></div>
+      <p id="login-err" class="form-err"></p>
+      <button type="submit" class="btn btn-primary" id="login-btn">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Accept Invite ── -->
+<div id="page-invite" class="page">
+  <div class="login-wrap">
+    <div class="login-masthead">
+      <div class="login-flag">This Happened</div>
+      <h1 class="login-title">Accept Invitation</h1>
+      <p class="login-subtitle">Create your editor account</p>
+    </div>
+    <form id="invite-form" class="login-form">
+      <div class="field"><label for="i-email">Email</label><input type="email" id="i-email" readonly></div>
+      <div class="field"><label for="i-pass">Password</label><input type="password" id="i-pass" required minlength="8" placeholder="Min. 8 characters"></div>
+      <div class="field"><label for="i-pass2">Confirm Password</label><input type="password" id="i-pass2" required></div>
+      <p id="invite-err" class="form-err"></p>
+      <button type="submit" class="btn btn-primary" id="invite-btn">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Password Reset ── -->
+<div id="page-reset" class="page">
+  <div class="login-wrap">
+    <div class="login-masthead">
+      <div class="login-flag">This Happened</div>
+      <h1 class="login-title">Set Password</h1>
+      <p class="login-subtitle">Choose a new password for your account</p>
+    </div>
+    <form id="reset-form" class="login-form">
+      <div class="field"><label for="r-pass">New Password</label><input type="password" id="r-pass" required minlength="8" placeholder="Min. 8 characters"></div>
+      <div class="field"><label for="r-pass2">Confirm Password</label><input type="password" id="r-pass2" required></div>
+      <p id="reset-err" class="form-err"></p>
+      <button type="submit" class="btn btn-primary" id="reset-btn">Set Password</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="page-app" class="page">
+  <aside id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <span class="sidebar-flag">This Happened</span>
+        <span class="sidebar-name">Quizmaster</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-section="questions" onclick="Nav.go('questions')">
+          <span class="nav-icon">◈</span> Questions
+        </button>
+        <button class="nav-item" data-section="categories" onclick="Nav.go('categories')">
+          <span class="nav-icon">◻</span> Categories
+        </button>
+        <button class="nav-item nav-team" data-section="team" onclick="Nav.go('team')">
+          <span class="nav-icon">◎</span> Team
+        </button>
+      </nav>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="sidebar-user">
+        <span id="sb-role" class="role-badge"></span>
+        <span id="sb-email" class="sb-email"></span>
+      </div>
+      <button class="sidebar-logout" onclick="Auth.logout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <!-- Questions -->
+    <section id="section-questions" class="section active">
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>Questions</h2>
+          <div class="date-nav">
+            <button class="date-arrow" onclick="Questions.prevDay()">‹</button>
+            <input type="date" id="q-date-picker" onchange="Questions.load()">
+            <button class="date-arrow" onclick="Questions.nextDay()">›</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="add-question-btn" onclick="Editor.open(null)">+ Add Question</button>
+      </div>
+      <div id="questions-list" class="questions-list"></div>
+    </section>
+
+    <!-- Categories -->
+    <section id="section-categories" class="section">
+      <div class="section-header"><h2>Categories</h2></div>
+      <div class="categories-body">
+        <form id="cat-form" class="add-form" onsubmit="Categories.add(event)">
+          <input type="text" id="cat-input" placeholder="New category name" maxlength="40">
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+        <div id="categories-list" class="categories-list"></div>
+      </div>
+    </section>
+
+    <!-- Team -->
+    <section id="section-team" class="section">
+      <div class="section-header">
+        <h2>Team</h2>
+        <button class="btn btn-primary" onclick="Team.showInviteModal()">+ Invite Editor</button>
+      </div>
+      <div id="team-list" class="team-list"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ── Question Editor Modal ── -->
+<div id="modal-editor" class="modal-overlay" onclick="Editor.closeIfBg(event)">
+  <div class="modal-box">
+    <div class="editor-header">
+      <h3 id="editor-title">New Question</h3>
+      <button class="modal-close" onclick="Editor.close()">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-row-2">
+        <div class="field"><label>Date</label><input type="date" id="e-date"></div>
+        <div class="field"><label>Category</label><select id="e-category"></select></div>
+      </div>
+      <div class="field"><label>Headline</label><input type="text" id="e-headline" placeholder="Article headline"></div>
+      <div class="field">
+        <label>Deck <span class="field-hint">— subheading or summary</span></label>
+        <input type="text" id="e-deck" placeholder="Brief summary of the article">
+      </div>
+      <div class="field">
+        <div class="body-toolbar">
+          <label>Article Body</label>
+          <button type="button" class="btn-blank" onclick="Editor.markBlank()">[ ] Mark as Blank</button>
+        </div>
+        <textarea id="e-body" rows="9" placeholder="Write the article here. Select a word or phrase, then click [ ] Mark as Blank to create a fill-in-the-blank."></textarea>
+        <div id="e-blanks" class="blanks-detected"><span class="no-blanks">No blanks marked yet.</span></div>
+      </div>
+      <button type="button" class="btn-preview-toggle" onclick="Editor.togglePreview()">Show Preview</button>
+      <div id="e-preview-wrap" style="display:none;"></div>
+    </div>
+    <div class="editor-footer">
+      <p id="editor-err" class="form-err"></p>
+      <div class="editor-actions">
+        <button class="btn btn-ghost" onclick="Editor.close()">Cancel</button>
+        <button class="btn btn-secondary" onclick="Editor.save('draft')">Save Draft</button>
+        <button class="btn btn-primary" onclick="Editor.save('published')">Publish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Invite Modal ── -->
+<div id="modal-invite" class="modal-overlay" onclick="Team.closeIfBg(event)">
+  <div class="modal-box invite-box">
+    <div class="editor-header">
+      <h3>Invite Editor</h3>
+      <button class="modal-close" onclick="Team.closeInvite()">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="field"><label>Email Address</label><input type="email" id="inv-email" placeholder="editor@example.com"></div>
+      <p id="inv-err" class="form-err"></p>
+      <div id="inv-link-wrap" style="display:none;">
+        <div class="field-label">Invite Link <span class="field-hint">— share this with the editor</span></div>
+        <div class="invite-link-box">
+          <code id="inv-link"></code>
+          <button class="btn btn-ghost" onclick="Team.copyLink()">Copy</button>
+        </div>
+        <p class="inv-note">Expires in 7 days. Single use.</p>
+      </div>
+    </div>
+    <div class="editor-footer">
+      <div></div>
+      <div class="editor-actions">
+        <button class="btn btn-ghost" onclick="Team.closeInvite()">Close</button>
+        <button class="btn btn-primary" id="inv-btn" onclick="Team.sendInvite()">Generate Link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL      = 'https://yejhhokjbgmjfzgjeppp.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inllamhob2tqYmdtamZ6Z2plcHBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTQ0NDIsImV4cCI6MjA4ODU5MDQ0Mn0.ZGhiDZi2-EnxQ5hf3Bi9aRO5FY3mrFbVkXBO1uYS5Zk';
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  /* ── State ── */
+  const state = { user: null, role: null, quizDate: today(), questions: [], categories: [], staff: [] };
+
+  function today() { return new Date().toISOString().split('T')[0]; }
+  function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('section-' + id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === id));
+  }
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function setErr(id, msg) { document.getElementById(id).textContent = msg; }
+
+  /* ── Init ── */
+  async function init() {
+    // Password recovery redirect — Supabase puts token info in the URL hash
+    const hash   = new URLSearchParams(window.location.hash.replace('#', ''));
+    const type   = hash.get('type');
+    const access = hash.get('access_token');
+
+    if (type === 'recovery' && access) {
+      // Set the session from the recovery token so updateUser works
+      await db.auth.setSession({ access_token: access, refresh_token: hash.get('refresh_token') });
+      window.history.replaceState({}, '', window.location.pathname);
+      showPage('page-reset');
+      return;
+    }
+
+    const params      = new URLSearchParams(window.location.search);
+    const inviteToken = params.get('invite');
+    const inviteEmail = params.get('email');
+
+    if (inviteToken && inviteEmail) {
+      document.getElementById('i-email').value          = decodeURIComponent(inviteEmail);
+      document.getElementById('i-email').dataset.token  = inviteToken;
+      showPage('page-invite');
+      return;
+    }
+
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      await loadStaffProfile(session.user);
+    } else {
+      showPage('page-login');
+    }
+  }
+
+  async function loadStaffProfile(user) {
+    const { data: profile } = await db.from('staff_profiles').select('role, email').eq('id', user.id).single();
+    if (!profile) {
+      await db.auth.signOut();
+      showPage('page-login');
+      setErr('login-err', 'No staff access found for this account.');
+      return;
+    }
+    state.user = user;
+    state.role = profile.role;
+    document.getElementById('sb-email').textContent = profile.email;
+    document.getElementById('sb-role').textContent  = profile.role === 'admin' ? 'Admin' : 'Editor';
+    document.getElementById('sb-role').className    = 'role-badge role-' + profile.role;
+    if (profile.role !== 'admin') document.querySelector('.nav-team').style.display = 'none';
+    document.getElementById('q-date-picker').value = state.quizDate;
+    showPage('page-app');
+    await Promise.all([Questions.load(), Categories.load()]);
+    if (state.role === 'admin') await Team.load();
+  }
+
+  /* ── Auth ── */
+  const Auth = {
+    async login(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      setErr('login-err', ''); btn.disabled = true; btn.textContent = 'Signing in…';
+      const { data, error } = await db.auth.signInWithPassword({
+        email: document.getElementById('l-email').value.trim(),
+        password: document.getElementById('l-pass').value,
+      });
+      btn.disabled = false; btn.textContent = 'Sign In';
+      if (error) { setErr('login-err', error.message); return; }
+      await loadStaffProfile(data.user);
+    },
+
+    async logout() {
+      await db.auth.signOut();
+      state.user = null; state.role = null;
+      showPage('page-login');
+    },
+
+    async acceptInvite(e) {
+      e.preventDefault();
+      const emailEl = document.getElementById('i-email');
+      const email   = emailEl.value.trim();
+      const token   = emailEl.dataset.token;
+      const pass    = document.getElementById('i-pass').value;
+      const pass2   = document.getElementById('i-pass2').value;
+      const btn     = document.getElementById('invite-btn');
+      setErr('invite-err', '');
+      if (pass !== pass2)    { setErr('invite-err', 'Passwords do not match.'); return; }
+      if (pass.length < 8)   { setErr('invite-err', 'Password must be at least 8 characters.'); return; }
+      btn.disabled = true; btn.textContent = 'Creating account…';
+
+      const { data: signupData, error: signupErr } = await db.auth.signUp({ email, password: pass });
+      if (signupErr) { btn.disabled = false; btn.textContent = 'Create Account'; setErr('invite-err', signupErr.message); return; }
+
+      const { data: result, error: rpcErr } = await db.rpc('accept_invite', {
+        p_token: token, p_email: email, p_user_id: signupData.user.id,
+      });
+      if (rpcErr || result !== 'ok') {
+        await db.auth.signOut();
+        btn.disabled = false; btn.textContent = 'Create Account';
+        setErr('invite-err', result === 'invalid' ? 'This invite link is invalid or has expired.' : 'Something went wrong. Please try again.');
+        return;
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+      await loadStaffProfile(signupData.user);
+    },
+  };
+
+  /* ── Nav ── */
+  const Nav = {
+    go(section) {
+      showSection(section);
+      if (section === 'questions') Questions.load();
+      if (section === 'categories') Categories.render();
+      if (section === 'team') Team.load();
+    },
+  };
+
+  /* ── Questions ── */
+  const Questions = {
+    async load() {
+      const date = document.getElementById('q-date-picker').value || state.quizDate;
+      state.quizDate = date;
+      const { data, error } = await db.from('questions').select('*, categories(name)').eq('quiz_date', date).order('created_at');
+      if (error) { console.error(error); return; }
+      state.questions = data || [];
+      this.render();
+    },
+
+    render() {
+      const list  = document.getElementById('questions-list');
+      const count = state.questions.length;
+      const isAdmin = state.role === 'admin';
+
+      if (count === 0) {
+        list.innerHTML = `<div class="empty-state">No questions for this date. <button class="link-btn" onclick="Editor.open(null)">Add one →</button></div>`;
+        document.getElementById('add-question-btn').style.display = '';
+        return;
+      }
+
+      list.innerHTML = state.questions.map(q => `
+        <div class="q-card ${q.status === 'published' ? 'q-published' : ''}">
+          <div class="q-card-main">
+            <div class="q-card-top">
+              <span class="q-status ${q.status}">${q.status === 'published' ? 'Published' : 'Draft'}</span>
+              <span class="q-category">${escHtml(q.categories?.name || 'General')}</span>
+            </div>
+            <div class="q-headline">${escHtml(q.headline || 'Untitled')}</div>
+            ${q.deck ? `<div class="q-deck">${escHtml(q.deck)}</div>` : ''}
+          </div>
+          <div class="q-card-actions">
+            ${q.status === 'draft'
+              ? `<button class="btn btn-publish"   onclick="Questions.setStatus('${q.id}','published')">Publish</button>`
+              : `<button class="btn btn-unpublish" onclick="Questions.setStatus('${q.id}','draft')">Unpublish</button>`}
+            <button class="btn btn-ghost btn-sm" onclick="Editor.open('${q.id}')">Edit</button>
+            ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="Questions.remove('${q.id}')">Delete</button>` : ''}
+          </div>
+        </div>
+      `).join('') + `<p class="slot-notice">${count} of 5 slots used for this date.</p>`;
+
+      document.getElementById('add-question-btn').style.display = count >= 5 ? 'none' : '';
+    },
+
+    async setStatus(id, status) {
+      const { error } = await db.from('questions').update({ status, updated_by: state.user.id }).eq('id', id);
+      if (error) { alert(error.message); return; }
+      await this.load();
+    },
+
+    async remove(id) {
+      if (!confirm('Delete this question? This cannot be undone.')) return;
+      const { error } = await db.from('questions').delete().eq('id', id);
+      if (error) { alert(error.message); return; }
+      await this.load();
+    },
+
+    prevDay() {
+      const d = new Date(document.getElementById('q-date-picker').value);
+      d.setDate(d.getDate() - 1);
+      document.getElementById('q-date-picker').value = d.toISOString().split('T')[0];
+      this.load();
+    },
+    nextDay() {
+      const d = new Date(document.getElementById('q-date-picker').value);
+      d.setDate(d.getDate() + 1);
+      document.getElementById('q-date-picker').value = d.toISOString().split('T')[0];
+      this.load();
+    },
+  };
+
+  /* ── Editor ── */
+  const Editor = {
+    questionId:  null,
+    previewOpen: false,
+
+    async open(id) {
+      this.questionId  = id;
+      this.previewOpen = false;
+      document.getElementById('e-preview-wrap').style.display = 'none';
+      document.querySelector('.btn-preview-toggle').textContent = 'Show Preview';
+      setErr('editor-err', '');
+
+      const catSel = document.getElementById('e-category');
+      catSel.innerHTML = state.categories.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+
+      if (id) {
+        const q = state.questions.find(q => q.id === id);
+        if (!q) return;
+        document.getElementById('editor-title').textContent = 'Edit Question';
+        document.getElementById('e-date').value     = q.quiz_date;
+        document.getElementById('e-headline').value = q.headline || '';
+        document.getElementById('e-deck').value     = q.deck     || '';
+        document.getElementById('e-body').value     = q.body     || '';
+        catSel.value = q.category_id;
+      } else {
+        document.getElementById('editor-title').textContent = 'New Question';
+        document.getElementById('e-date').value     = state.quizDate;
+        document.getElementById('e-headline').value = '';
+        document.getElementById('e-deck').value     = '';
+        document.getElementById('e-body').value     = '';
+        const general = state.categories.find(c => c.is_default);
+        if (general) catSel.value = general.id;
+      }
+
+      this.updateBlanks();
+      openModal('modal-editor');
+      setTimeout(() => document.getElementById('e-headline').focus(), 80);
+    },
+
+    close()            { closeModal('modal-editor'); this.questionId = null; },
+    closeIfBg(e)       { if (e.target === document.getElementById('modal-editor')) this.close(); },
+
+    markBlank() {
+      const ta    = document.getElementById('e-body');
+      const start = ta.selectionStart;
+      const end   = ta.selectionEnd;
+      if (start === end) { alert('Select a word or phrase in the article body first.'); return; }
+      const selected = ta.value.substring(start, end);
+      if (selected.startsWith('[') && selected.endsWith(']')) return;
+      ta.value = ta.value.substring(0, start) + '[' + selected + ']' + ta.value.substring(end);
+      ta.focus();
+      ta.setSelectionRange(start + 1, end + 1);
+      this.updateBlanks();
+      if (this.previewOpen) this.renderPreview();
+    },
+
+    updateBlanks() {
+      const body    = document.getElementById('e-body').value;
+      const matches = [...body.matchAll(/\[([^\]]+)\]/g)].map(m => m[1]);
+      const el      = document.getElementById('e-blanks');
+      el.innerHTML  = matches.length === 0
+        ? '<span class="no-blanks">No blanks marked yet.</span>'
+        : '<span class="blanks-label">Blanks:</span> ' + matches.map(m => `<span class="blank-chip">${escHtml(m)}</span>`).join('');
+    },
+
+    togglePreview() {
+      this.previewOpen = !this.previewOpen;
+      const wrap = document.getElementById('e-preview-wrap');
+      const btn  = document.querySelector('.btn-preview-toggle');
+      if (this.previewOpen) { this.renderPreview(); wrap.style.display = 'block'; btn.textContent = 'Hide Preview'; }
+      else                  { wrap.style.display = 'none'; btn.textContent = 'Show Preview'; }
+    },
+
+    renderPreview() {
+      const headline = document.getElementById('e-headline').value;
+      const deck     = document.getElementById('e-deck').value;
+      const body     = document.getElementById('e-body').value;
+      let   count    = 0;
+      const rendered = escHtml(body).replace(/\[([^\]]+)\]/g, (_, ans) => {
+        count++;
+        return `<span class="preview-blank"><input type="text" placeholder="${escHtml(ans)}" disabled style="width:${Math.max(4, ans.length + 1)}ch"></span>`;
+      });
+      document.getElementById('e-preview-wrap').innerHTML = `
+        <div class="preview-label">Preview</div>
+        <div class="preview-card">
+          ${headline ? `<div class="preview-headline">${escHtml(headline)}</div>` : ''}
+          ${deck     ? `<div class="preview-deck">${escHtml(deck)}</div>`         : ''}
+          <div class="preview-body">${rendered}</div>
+          <div class="preview-blanks-count">${count} blank${count !== 1 ? 's' : ''}</div>
+        </div>`;
+    },
+
+    async save(status) {
+      const body       = document.getElementById('e-body').value.trim();
+      const date       = document.getElementById('e-date').value;
+      const headline   = document.getElementById('e-headline').value.trim();
+      const deck       = document.getElementById('e-deck').value.trim();
+      const categoryId = document.getElementById('e-category').value;
+      setErr('editor-err', '');
+      if (!body)                        { setErr('editor-err', 'Article body is required.'); return; }
+      if (!date)                        { setErr('editor-err', 'Date is required.'); return; }
+      if (!/\[[^\]]+\]/.test(body))     { setErr('editor-err', 'Mark at least one blank in the article body.'); return; }
+
+      const payload = { quiz_date: date, headline: headline || null, deck: deck || null, body, category_id: categoryId, status, updated_by: state.user.id };
+      let error;
+      if (this.questionId) {
+        ({ error } = await db.from('questions').update(payload).eq('id', this.questionId));
+      } else {
+        payload.created_by = state.user.id;
+        ({ error } = await db.from('questions').insert(payload));
+      }
+      if (error) {
+        setErr('editor-err', error.message.includes('Maximum of 5') ? 'This date already has 5 questions.' : error.message);
+        return;
+      }
+      this.close();
+      await Questions.load();
+    },
+  };
+
+  /* ── Categories ── */
+  const Categories = {
+    async load() {
+      const { data, error } = await db.from('categories').select('*').order('name');
+      if (error) { console.error(error); return; }
+      state.categories = data || [];
+      this.render();
+    },
+
+    render() {
+      const list = document.getElementById('categories-list');
+      if (!list) return;
+      list.innerHTML = state.categories.map(c => `
+        <div class="cat-row">
+          <span class="cat-name">${escHtml(c.name)}${c.is_default ? '<span class="default-badge"> Default</span>' : ''}</span>
+          ${!c.is_default ? `<button class="btn btn-danger btn-sm" onclick="Categories.remove('${c.id}','${escHtml(c.name)}')">Delete</button>` : ''}
+        </div>
+      `).join('') || '<div class="empty-state">No categories yet.</div>';
+    },
+
+    async add(e) {
+      e.preventDefault();
+      const input = document.getElementById('cat-input');
+      const name  = input.value.trim();
+      if (!name) return;
+      const { error } = await db.from('categories').insert({ name, created_by: state.user.id });
+      if (error) { alert(error.message.includes('unique') ? 'A category with that name already exists.' : error.message); return; }
+      input.value = '';
+      await this.load();
+    },
+
+    async remove(id, name) {
+      if (!confirm(`Delete "${name}"? All questions in this category will move to General.`)) return;
+      const { error } = await db.from('categories').delete().eq('id', id);
+      if (error) { alert(error.message); return; }
+      await this.load();
+    },
+  };
+
+  /* ── Team ── */
+  const Team = {
+    async load() {
+      const { data, error } = await db.from('staff_profiles').select('*').order('created_at');
+      if (error) { console.error(error); return; }
+      state.staff = data || [];
+      this.render();
+    },
+
+    render() {
+      const list = document.getElementById('team-list');
+      if (!list) return;
+      list.innerHTML = state.staff.map(s => `
+        <div class="team-row">
+          <div class="team-info">
+            <span class="team-email">${escHtml(s.email)}</span>
+            <span class="role-badge role-${s.role}">${s.role === 'admin' ? 'Admin' : 'Editor'}</span>
+          </div>
+          ${s.id !== state.user.id
+            ? `<button class="btn btn-danger btn-sm" onclick="Team.remove('${s.id}','${escHtml(s.email)}')">Remove</button>`
+            : '<span class="you-label">(you)</span>'}
+        </div>
+      `).join('') || '<div class="empty-state">No team members found.</div>';
+    },
+
+    showInviteModal() {
+      document.getElementById('inv-email').value = '';
+      document.getElementById('inv-link-wrap').style.display = 'none';
+      setErr('inv-err', '');
+      openModal('modal-invite');
+    },
+    closeInvite()  { closeModal('modal-invite'); },
+    closeIfBg(e)   { if (e.target === document.getElementById('modal-invite')) this.closeInvite(); },
+
+    async sendInvite() {
+      const email = document.getElementById('inv-email').value.trim();
+      if (!email) { setErr('inv-err', 'Please enter an email address.'); return; }
+      const btn = document.getElementById('inv-btn');
+      setErr('inv-err', ''); btn.disabled = true; btn.textContent = 'Generating…';
+      const { data, error } = await db.from('invites').insert({ email, invited_by: state.user.id }).select('token').single();
+      btn.disabled = false; btn.textContent = 'Generate Link';
+      if (error) { setErr('inv-err', error.message); return; }
+      const link = `${location.origin}${location.pathname}?invite=${data.token}&email=${encodeURIComponent(email)}`;
+      document.getElementById('inv-link').textContent = link;
+      document.getElementById('inv-link-wrap').style.display = 'block';
+    },
+
+    copyLink() {
+      navigator.clipboard.writeText(document.getElementById('inv-link').textContent).then(() => {
+        const btn = document.querySelector('#modal-invite .btn-ghost');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      });
+    },
+
+    async remove(id, email) {
+      if (!confirm(`Remove ${email} from the team?`)) return;
+      const { error } = await db.from('staff_profiles').delete().eq('id', id);
+      if (error) { alert(error.message); return; }
+      await this.load();
+    },
+  };
+
+  /* ── Event listeners ── */
+  document.getElementById('login-form').addEventListener('submit',  e => Auth.login(e));
+  document.getElementById('invite-form').addEventListener('submit', e => Auth.acceptInvite(e));
+  document.getElementById('reset-form').addEventListener('submit',  async e => {
+    e.preventDefault();
+    const pass  = document.getElementById('r-pass').value;
+    const pass2 = document.getElementById('r-pass2').value;
+    const btn   = document.getElementById('reset-btn');
+    setErr('reset-err', '');
+    if (pass !== pass2)  { setErr('reset-err', 'Passwords do not match.'); return; }
+    if (pass.length < 8) { setErr('reset-err', 'Password must be at least 8 characters.'); return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const { error } = await db.auth.updateUser({ password: pass });
+    if (error) { btn.disabled = false; btn.textContent = 'Set Password'; setErr('reset-err', error.message); return; }
+    const { data: { session } } = await db.auth.getSession();
+    await loadStaffProfile(session.user);
+  });
+  document.getElementById('cat-form').addEventListener('submit',    e => Categories.add(e));
+  document.getElementById('e-body').addEventListener('input', () => {
+    Editor.updateBlanks();
+    if (Editor.previewOpen) Editor.renderPreview();
+  });
+
+  init();
+</script>
+</body>
+</html>
