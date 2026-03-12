@@ -833,7 +833,7 @@
       if (!date)                        { setErr('editor-err', 'Date is required.'); return; }
       if (!/\[[^\]]+\]/.test(body))     { setErr('editor-err', 'Mark at least one blank in the article body.'); return; }
 
-      const payload = { quiz_date: date, headline: headline || null, deck: deck || null, body, category_id: categoryId, status, alternates: this.alternates, updated_by: state.user.id };
+      const payload = { quiz_date: date, headline: headline || null, deck: deck || null, body, category_id: categoryId || null, status, alternates: this.alternates, updated_by: state.user.id };
       let error;
       if (this.questionId) {
         ({ error } = await db.from('questions').update(payload).eq('id', this.questionId));
