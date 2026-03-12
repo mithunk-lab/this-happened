@@ -1353,7 +1353,20 @@ const App = (() => {
       const { data } = await db.from('profiles').select('username').eq('id', user.id).single();
       currentProfile = data;
       if (!data?.username) {
-        // OAuth user with no profile yet — ask for a username
+        // No profile yet — try to auto-create from Google display name
+        const googleName = (user.user_metadata?.full_name || user.user_metadata?.name || '').trim();
+        if (googleName) {
+          const { error } = await db.from('profiles').upsert({ id: user.id, username: googleName });
+          if (!error) {
+            currentProfile = { username: googleName };
+            updateAuthBar();
+            closeAuthModal();
+            if (pendingSubmit) { pendingSubmit = false; doSubmit(); }
+            return;
+          }
+        }
+        // Auto-fill failed (name taken or blank) — ask user to choose
+        document.getElementById('oauth-username').value = googleName;
         showAuthModal('username');
         return;
       }
