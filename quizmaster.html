@@ -421,6 +421,14 @@
   const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // PKCE recovery flow: Supabase v2 fires PASSWORD_RECOVERY via onAuthStateChange
+  db.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      window.history.replaceState({}, '', window.location.pathname);
+      showPage('page-reset');
+    }
+  });
+
   /* ── State ── */
   const state = { user: null, role: null, quizDate: today(), questions: [], categories: [], staff: [] };
 
@@ -440,18 +448,20 @@
 
   /* ── Init ── */
   async function init() {
-    // Password recovery redirect — Supabase puts token info in the URL hash
+    // Implicit flow: token in URL hash (older Supabase projects)
     const hash   = new URLSearchParams(window.location.hash.replace('#', ''));
     const type   = hash.get('type');
     const access = hash.get('access_token');
 
     if (type === 'recovery' && access) {
-      // Set the session from the recovery token so updateUser works
       await db.auth.setSession({ access_token: access, refresh_token: hash.get('refresh_token') });
       window.history.replaceState({}, '', window.location.pathname);
       showPage('page-reset');
       return;
     }
+
+    // PKCE flow: code in query string — handled by onAuthStateChange above
+    if (new URLSearchParams(window.location.search).has('code')) return;
 
     const params      = new URLSearchParams(window.location.search);
     const inviteToken = params.get('invite');
