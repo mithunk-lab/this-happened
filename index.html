@@ -1859,8 +1859,6 @@ const App = (() => {
     input.type = 'text';
     input.className = 'blank-input';
     const alts = getAlternates(answer);
-    const maxLen = Math.max(...alts.map(a => a.length));
-    input.maxLength = maxLen;
     input.autocomplete = 'off';
     input.autocorrect = 'off';
     input.autocapitalize = 'off';
