@@ -1252,6 +1252,90 @@ const App = (() => {
       .trim();
   }
 
+  /* ── Date parsing ── */
+  const MONTH_NAMES = {
+    jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,
+    may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,
+    sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12
+  };
+
+  function parseDate(str) {
+    str = str.toLowerCase().trim().replace(/(\d+)(st|nd|rd|th)/g, '$1');
+    let m;
+    // "March 15" or "March 15, 2024"
+    m = str.match(/^([a-z]+)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$/);
+    if (m && MONTH_NAMES[m[1]]) return { month: MONTH_NAMES[m[1]], day: +m[2], year: m[3] ? +m[3] : null };
+    // "15 March" or "15 March 2024"
+    m = str.match(/^(\d{1,2})\s+([a-z]+)(?:\s*,?\s*(\d{4}))?$/);
+    if (m && MONTH_NAMES[m[2]]) return { month: MONTH_NAMES[m[2]], day: +m[1], year: m[3] ? +m[3] : null };
+    // "3/15" or "3/15/2024"
+    m = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+    if (m) return { month: +m[1], day: +m[2], year: m[3] ? +m[3] : null };
+    return null;
+  }
+
+  function datesMatch(typed, answer) {
+    const d1 = parseDate(typed), d2 = parseDate(answer);
+    if (!d1 || !d2) return false;
+    if (d1.day !== d2.day || d1.month !== d2.month) return false;
+    if (d2.year && d1.year !== d2.year) return false;
+    return true;
+  }
+
+  function looksLikeDate(str) {
+    return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\b/i.test(str) ||
+           /^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(str);
+  }
+
+  /* ── Fuzzy matching ── */
+  function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({length: m + 1}, (_, i) => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  }
+
+  function fuzzyTolerance(len) {
+    if (len <= 6)  return 0;
+    if (len <= 9)  return 1;
+    if (len <= 13) return 2;
+    return 3;
+  }
+
+  // Single word fuzzy with first/last letter locked
+  function fuzzyWordMatch(typed, answer) {
+    if (typed === answer) return true;
+    const tol = fuzzyTolerance(answer.length);
+    if (tol === 0 || typed.length < 2 || answer.length < 2) return false;
+    if (typed[0] !== answer[0] || typed[typed.length-1] !== answer[answer.length-1]) return false;
+    return levenshtein(typed.slice(1, -1), answer.slice(1, -1)) <= tol;
+  }
+
+  // True if answer starts with a capital — heuristic for proper noun
+  function isProperNoun(answer) {
+    return /^[A-Z]/.test(answer.trim());
+  }
+
+  // All answer words must appear in typed, in order (extras in typed allowed)
+  function wordsInOrder(typedWords, answerWords, fuzzy) {
+    let ti = 0;
+    for (let ai = 0; ai < answerWords.length; ai++) {
+      let found = false;
+      while (ti < typedWords.length) {
+        const tw = typedWords[ti++];
+        if (tw === answerWords[ai] || (fuzzy && fuzzyWordMatch(tw, answerWords[ai]))) {
+          found = true; break;
+        }
+      }
+      if (!found) return false;
+    }
+    return true;
+  }
+
   function getAlternates(answer) {
     const a = normalizeAnswer(answer);
     const alts = new Set([a]);
@@ -1260,8 +1344,44 @@ const App = (() => {
     return [...alts];
   }
 
-  function isCorrect(typed, answer) {
-    return getAlternates(answer).includes(normalizeAnswer(typed));
+  // answerMeta = { alternates: [], type: 'person' } — optional, added later via editor UI
+  function isCorrect(typed, answer, answerMeta) {
+    const typedNorm  = normalizeAnswer(typed);
+    const answerNorm = normalizeAnswer(answer);
+
+    // 1. Editor-defined alternates
+    if (answerMeta?.alternates?.length) {
+      if (answerMeta.alternates.some(a => normalizeAnswer(a) === typedNorm)) return true;
+    }
+
+    // 2. Exact + number word conversion
+    if (getAlternates(answer).includes(typedNorm)) return true;
+
+    // 3. Date formats
+    if (looksLikeDate(answerNorm) && datesMatch(typedNorm, answerNorm)) return true;
+
+    const typedWords  = typedNorm.split(' ').filter(Boolean);
+    const answerWords = answerNorm.split(' ').filter(Boolean);
+    const proper      = isProperNoun(answer);
+
+    // 4. Multi-word answers
+    if (answerWords.length > 1) {
+      // No-space version: "DonaldTrump"
+      if (typedWords.join('') === answerWords.join('')) return true;
+      // Words present in order, extras allowed
+      if (wordsInOrder(typedWords, answerWords, proper)) return true;
+      // Person: last name only
+      const isPerson = answerMeta?.type === 'person' || (!answerMeta && proper);
+      if (isPerson && typedWords.length === 1) {
+        const last = answerWords[answerWords.length - 1];
+        if (typedWords[0] === last || fuzzyWordMatch(typedWords[0], last)) return true;
+      }
+    } else {
+      // 5. Single word fuzzy (proper nouns only)
+      if (proper && fuzzyWordMatch(typedNorm, answerNorm)) return true;
+    }
+
+    return false;
   }
 
   /* ─── UTILS ─────────────────────────────────────────── */
@@ -1719,7 +1839,7 @@ const App = (() => {
         } else {
           const answer = chunk;
           const input = makeInput(answer, ansIdx++);
-          quiz.inputs.push({ el: input, answer: answer.toLowerCase() });
+          quiz.inputs.push({ el: input, answer });
           p.appendChild(input);
         }
       });
@@ -1750,7 +1870,7 @@ const App = (() => {
 
     input.addEventListener('input', () => {
       if (quiz.submitted) return;
-      const typed = input.value.toLowerCase();
+      const typed = input.value;
       input.classList.remove('is-correct', 'is-incorrect');
       if (isCorrect(typed, answer)) {
         input.classList.add('is-correct');
@@ -1800,7 +1920,7 @@ const App = (() => {
 
     quiz.inputs.forEach(({ el, answer }) => {
       el.disabled = true;
-      const typed = el.value.toLowerCase();
+      const typed = el.value;
       const correct = isCorrect(typed, answer);
       if (correct) score += 5;
       results.push(correct);
