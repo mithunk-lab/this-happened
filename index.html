@@ -919,7 +919,7 @@
     <div class="masthead">
       <hr class="mh-rule-top">
       <div class="mh-inner">
-        <div class="mh-side" id="mh-date-left">Sunday<br>March 8</div>
+        <div class="mh-side" id="mh-date-left"></div>
         <div class="mh-center">
           <div class="mh-title">This Happened</div>
           <div class="mh-sub">The Daily News Quiz</div>
@@ -1427,21 +1427,24 @@ const App = (() => {
   async function renderQuiz() {
     quiz = { submitted: false, inputs: [], results: [], score: 0, max: 0 };
 
-    // Fetch today's published question from Supabase
+    // Fetch the most recent published question up to today from Supabase
     if (SUPABASE_READY) {
       const { data } = await db
         .from('questions')
         .select('*')
-        .eq('quiz_date', todayISO())
         .eq('status', 'published')
+        .lte('quiz_date', todayISO())
+        .order('quiz_date', { ascending: false })
+        .limit(1)
         .maybeSingle();
       currentQuestion = data || null;
     }
 
     const data = currentQuestion;
 
-    if (data?.quiz_date) {
-      const [wd, md] = fmtShort(data.quiz_date);
+    {
+      const dateStr = data?.quiz_date || todayISO();
+      const [wd, md] = fmtShort(dateStr);
       document.getElementById('mh-date-left').innerHTML = wd + '<br>' + md;
     }
 
@@ -1451,7 +1454,7 @@ const App = (() => {
     if (!data || !data.body || !data.body.trim()) {
       main.innerHTML = `
         <div class="no-quiz">
-          <p>No quiz has been published for today.</p>
+          <p>No quiz has been published yet.</p>
         </div>`;
       document.getElementById('submit-area').style.display = 'none';
       return;
