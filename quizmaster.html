@@ -62,6 +62,9 @@
     .field textarea { resize: vertical; line-height: 1.6; }
     .field input[readonly] { background: var(--cream); color: var(--muted); }
     .form-err { font-size: 0.88rem; color: var(--brick); min-height: 1.2em; }
+    .form-ok  { font-size: 0.88rem; color: #1B5E20; font-style: italic; }
+    .link-btn { background: none; border: none; padding: 0; color: var(--muted); font-size: 0.82rem; font-style: italic; cursor: pointer; text-decoration: underline; font-family: inherit; }
+    .link-btn:hover { color: var(--ink); }
 
     /* ── Buttons ── */
     .btn {
@@ -241,6 +244,17 @@
       <p id="login-err" class="form-err"></p>
       <button type="submit" class="btn btn-primary" id="login-btn">Sign In</button>
     </form>
+    <p style="text-align:center;margin-top:1rem">
+      <button type="button" class="link-btn" onclick="document.getElementById('forgot-wrap').style.display=document.getElementById('forgot-wrap').style.display==='none'?'block':'none'">Forgot password?</button>
+    </p>
+    <div id="forgot-wrap" style="display:none;margin-top:0.75rem">
+      <form id="forgot-form" class="login-form">
+        <div class="field"><label for="f-email">Email</label><input type="email" id="f-email" autocomplete="email" required></div>
+        <p id="forgot-err" class="form-err"></p>
+        <p id="forgot-ok"  class="form-ok" style="display:none">Check your email for a reset link.</p>
+        <button type="submit" class="btn btn-primary" id="forgot-btn">Send Reset Link</button>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -859,6 +873,22 @@
 
   /* ── Event listeners ── */
   document.getElementById('login-form').addEventListener('submit',  e => Auth.login(e));
+  document.getElementById('forgot-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn   = document.getElementById('forgot-btn');
+    const errEl = document.getElementById('forgot-err');
+    const okEl  = document.getElementById('forgot-ok');
+    const email = document.getElementById('f-email').value.trim();
+    setErr('forgot-err', ''); okEl.style.display = 'none';
+    if (!email) { setErr('forgot-err', 'Please enter your email.'); return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const { error } = await db.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/quizmaster.html'
+    });
+    btn.disabled = false; btn.textContent = 'Send Reset Link';
+    if (error) { setErr('forgot-err', error.message); return; }
+    okEl.style.display = '';
+  });
   document.getElementById('invite-form').addEventListener('submit', e => Auth.acceptInvite(e));
   document.getElementById('reset-form').addEventListener('submit',  async e => {
     e.preventDefault();

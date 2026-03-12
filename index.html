@@ -627,6 +627,20 @@
     .modal-submit:hover:not(:disabled) { background: var(--brick-hover); border-color: var(--brick-hover); }
     .modal-submit:disabled { background: #aaa; border-color: #aaa; cursor: default; }
 
+    .modal-hint {
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 1rem;
+    }
+
+    .modal-ok {
+      font-size: 0.82rem;
+      color: var(--correct-fg);
+      font-style: italic;
+      margin-bottom: 0.75rem;
+    }
+
     .modal-footer-note {
       text-align: center;
       font-size: 0.8rem;
@@ -864,6 +878,8 @@
         <div class="modal-error" id="login-error"></div>
         <button type="submit" class="modal-submit" id="login-submit">Log In</button>
         <p class="modal-footer-note">
+          <button type="button" class="modal-switch-link" onclick="App.switchTab('forgot')">Forgot password?</button>
+          &ensp;&middot;&ensp;
           No account yet?
           <button type="button" class="modal-switch-link" onclick="App.switchTab('signup')">Sign up free</button>
         </p>
@@ -889,6 +905,32 @@
           Already have an account?
           <button type="button" class="modal-switch-link" onclick="App.switchTab('login')">Log in</button>
         </p>
+      </form>
+
+      <!-- Forgot password form -->
+      <form class="modal-form" id="form-forgot" novalidate>
+        <p class="modal-hint">Enter your email and we&rsquo;ll send a reset link.</p>
+        <div class="modal-field">
+          <label class="modal-label" for="forgot-email">Email</label>
+          <input class="modal-input" type="email" id="forgot-email" autocomplete="email" required>
+        </div>
+        <div class="modal-error"   id="forgot-error"></div>
+        <div class="modal-ok"      id="forgot-ok" style="display:none">Check your email for a reset link.</div>
+        <button type="submit" class="modal-submit" id="forgot-submit">Send Reset Link</button>
+        <p class="modal-footer-note">
+          <button type="button" class="modal-switch-link" onclick="App.switchTab('login')">Back to Log In</button>
+        </p>
+      </form>
+
+      <!-- Reset password form (shown after clicking email link) -->
+      <form class="modal-form" id="form-reset-user" novalidate>
+        <p class="modal-hint">Choose a new password for your account.</p>
+        <div class="modal-field">
+          <label class="modal-label" for="reset-user-pass">New Password</label>
+          <input class="modal-input" type="password" id="reset-user-pass" autocomplete="new-password" required>
+        </div>
+        <div class="modal-error" id="reset-user-error"></div>
+        <button type="submit" class="modal-submit" id="reset-user-submit">Set Password</button>
       </form>
 
       <!-- Success state (shown after signup) -->
@@ -1142,8 +1184,18 @@ const App = (() => {
   const NUM_TO_WORD = {};
   Object.entries(WORD_TO_NUM).forEach(([w, n]) => { NUM_TO_WORD[n] = w; });
 
+  function normalizeAnswer(str) {
+    return str
+      .toLowerCase()
+      .replace(/['''\u2018\u2019`]/g, '')  // apostrophes / smart quotes
+      .replace(/[()[\]{}]/g, '')           // parentheses / brackets
+      .replace(/[-–—]/g, ' ')             // dashes to space
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function getAlternates(answer) {
-    const a = answer.toLowerCase();
+    const a = normalizeAnswer(answer);
     const alts = new Set([a]);
     if (WORD_TO_NUM[a]) alts.add(WORD_TO_NUM[a]);
     if (NUM_TO_WORD[a]) alts.add(NUM_TO_WORD[a]);
@@ -1151,7 +1203,7 @@ const App = (() => {
   }
 
   function isCorrect(typed, answer) {
-    return getAlternates(answer).includes(typed.toLowerCase());
+    return getAlternates(answer).includes(normalizeAnswer(typed));
   }
 
   /* ─── UTILS ─────────────────────────────────────────── */
@@ -1203,6 +1255,18 @@ const App = (() => {
 
   async function initAuth() {
     if (!db) { updateAuthBar(); return; }
+
+    // Implicit flow: recovery token in URL hash
+    const hash = new URLSearchParams(window.location.hash.replace('#', ''));
+    if (hash.get('type') === 'recovery' && hash.get('access_token')) {
+      const { error } = await db.auth.setSession({
+        access_token:  hash.get('access_token'),
+        refresh_token: hash.get('refresh_token') || ''
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+      if (!error) { showAuthModal('reset-user'); return; }
+    }
+
     try {
       const { data: { session } } = await db.auth.getSession();
       await setUser(session?.user ?? null);
@@ -1210,7 +1274,12 @@ const App = (() => {
       updateAuthBar();
       return;
     }
-    db.auth.onAuthStateChange(async (_event, session) => {
+    db.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.history.replaceState({}, '', window.location.pathname);
+        showAuthModal('reset-user');
+        return;
+      }
       await setUser(session?.user ?? null);
       if (currentUser && pendingSubmit) {
         pendingSubmit = false;
@@ -1259,21 +1328,26 @@ const App = (() => {
     document.getElementById('auth-modal').classList.remove('open');
     clearErrors();
     document.getElementById('modal-success').classList.remove('show');
-    document.getElementById('form-login').classList.add('active');
-    document.getElementById('form-signup').classList.remove('active');
+    document.querySelector('.modal-tabs').style.display = '';
+    switchTab('login');
   }
 
   function switchTab(tab) {
-    document.getElementById('form-login').classList.toggle('active',  tab === 'login');
-    document.getElementById('form-signup').classList.toggle('active', tab === 'signup');
-    document.getElementById('tab-login').classList.toggle('active',   tab === 'login');
-    document.getElementById('tab-signup').classList.toggle('active',  tab === 'signup');
+    ['login', 'signup', 'forgot', 'reset-user'].forEach(t => {
+      document.getElementById('form-' + t)?.classList.toggle('active', t === tab);
+    });
+    document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    const hideTabs = tab === 'forgot' || tab === 'reset-user';
+    document.querySelector('.modal-tabs').style.display = hideTabs ? 'none' : '';
     clearErrors();
   }
 
   function clearErrors() {
-    document.getElementById('login-error').textContent  = '';
-    document.getElementById('signup-error').textContent = '';
+    ['login-error', 'signup-error', 'forgot-error', 'reset-user-error'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '';
+    });
   }
 
   function setModalSubtitle(text) {
@@ -1345,6 +1419,40 @@ const App = (() => {
 
   async function handleLogout() {
     if (db) await db.auth.signOut();
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    const btn    = document.getElementById('forgot-submit');
+    const errEl  = document.getElementById('forgot-error');
+    const okEl   = document.getElementById('forgot-ok');
+    const email  = document.getElementById('forgot-email').value.trim();
+    errEl.textContent = '';
+    okEl.style.display = 'none';
+    if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+    if (!db)    { errEl.textContent = 'Database not configured.'; return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const { error } = await db.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    btn.disabled = false; btn.textContent = 'Send Reset Link';
+    if (error) { errEl.textContent = error.message; return; }
+    okEl.style.display = '';
+  }
+
+  async function handleResetUserPassword(e) {
+    e.preventDefault();
+    const btn   = document.getElementById('reset-user-submit');
+    const errEl = document.getElementById('reset-user-error');
+    const pass  = document.getElementById('reset-user-pass').value;
+    errEl.textContent = '';
+    if (pass.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (!db) { errEl.textContent = 'Database not configured.'; return; }
+    btn.disabled = true; btn.textContent = 'Setting password…';
+    const { error } = await db.auth.updateUser({ password: pass });
+    btn.disabled = false; btn.textContent = 'Set Password';
+    if (error) { errEl.textContent = error.message; return; }
+    closeAuthModal();
   }
 
   /* ─── TIMER ──────────────────────────────────────────── */
@@ -1777,8 +1885,10 @@ const App = (() => {
   });
 
   /* ─── FORM SUBMIT LISTENERS ──────────────────────────── */
-  document.getElementById('form-login').addEventListener('submit',  handleLogin);
-  document.getElementById('form-signup').addEventListener('submit', handleSignup);
+  document.getElementById('form-login').addEventListener('submit',      handleLogin);
+  document.getElementById('form-signup').addEventListener('submit',     handleSignup);
+  document.getElementById('form-forgot').addEventListener('submit',     handleForgotPassword);
+  document.getElementById('form-reset-user').addEventListener('submit', handleResetUserPassword);
 
   /* ─── BOOT ───────────────────────────────────────────── */
   function init() {
