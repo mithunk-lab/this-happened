@@ -1462,6 +1462,7 @@ const App = (() => {
       if (currentUser && pendingSubmit) {
         pendingSubmit = false;
         closeAuthModal();
+        restorePendingAnswers();  // restore in case of email/password flow
         doSubmit();
       }
     });
@@ -1852,6 +1853,16 @@ const App = (() => {
     quiz.max = quiz.inputs.length * 5;
     resetSubmitUI();
     initTimer();
+
+    // Restore answers saved before an OAuth redirect
+    if (restorePendingAnswers()) {
+      if (currentUser) {
+        clearPendingAnswers();
+        setTimeout(() => doSubmit(), 50);
+      } else {
+        pendingSubmit = true;  // onAuthStateChange will call doSubmit once logged in
+      }
+    }
   }
 
   function makeInput(answer, idx, answerMeta) {
@@ -1892,6 +1903,31 @@ const App = (() => {
       'Fill in the Blanks \u00a0·\u00a0 5 Points Each \u00a0·\u00a0 25 Points Total';
   }
 
+  /* ─── PENDING ANSWERS (survives OAuth page redirect) ─── */
+  const PENDING_KEY = 'thisHappened_pendingAnswers_v1';
+
+  function savePendingAnswers() {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify({
+      answers:   quiz.inputs.map(({ el }) => el.value),
+      quizDate:  currentQuestion?.quiz_date || null
+    }));
+  }
+
+  function restorePendingAnswers() {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return false;
+    try {
+      const { answers, quizDate } = JSON.parse(raw);
+      if (quizDate && currentQuestion?.quiz_date !== quizDate) return false;
+      answers.forEach((val, i) => { if (quiz.inputs[i]) quiz.inputs[i].el.value = val; });
+      return true;
+    } catch(e) { return false; }
+  }
+
+  function clearPendingAnswers() {
+    sessionStorage.removeItem(PENDING_KEY);
+  }
+
   /* ─── SUBMIT ─────────────────────────────────────────── */
   function handleSubmit() {
     if (quiz.submitted) return;
@@ -1899,6 +1935,7 @@ const App = (() => {
     // Gate: must be logged in
     if (!currentUser) {
       pendingSubmit = true;
+      savePendingAnswers();
       setModalSubtitle('Sign in to save your score');
       showAuthModal('login');
       return;
@@ -1909,6 +1946,7 @@ const App = (() => {
 
   function doSubmit() {
     if (quiz.submitted) return;
+    clearPendingAnswers();
     quiz.submitted = true;
 
     const elapsedMs = stopTimer();
