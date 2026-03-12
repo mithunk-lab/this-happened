@@ -1828,6 +1828,7 @@ const App = (() => {
     body.className = 'article-body';
 
     const paragraphs = data.body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    const questionAlternates = data.alternates || {};
     let ansIdx = 0;
 
     paragraphs.forEach(paraText => {
@@ -1838,8 +1839,9 @@ const App = (() => {
           if (chunk) p.appendChild(document.createTextNode(chunk));
         } else {
           const answer = chunk;
-          const input = makeInput(answer, ansIdx++);
-          quiz.inputs.push({ el: input, answer });
+          const answerMeta = { alternates: questionAlternates[answer] || [] };
+          const input = makeInput(answer, ansIdx++, answerMeta);
+          quiz.inputs.push({ el: input, answer, answerMeta });
           p.appendChild(input);
         }
       });
@@ -1852,7 +1854,7 @@ const App = (() => {
     initTimer();
   }
 
-  function makeInput(answer, idx) {
+  function makeInput(answer, idx, answerMeta) {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'blank-input';
@@ -1872,7 +1874,7 @@ const App = (() => {
       if (quiz.submitted) return;
       const typed = input.value;
       input.classList.remove('is-correct', 'is-incorrect');
-      if (isCorrect(typed, answer)) {
+      if (isCorrect(typed, answer, answerMeta)) {
         input.classList.add('is-correct');
       } else if (alts.some(a => typed.length === a.length)) {
         input.classList.add('is-incorrect');
@@ -1918,10 +1920,10 @@ const App = (() => {
     const results = [];
     const answerLog = [];
 
-    quiz.inputs.forEach(({ el, answer }) => {
+    quiz.inputs.forEach(({ el, answer, answerMeta }) => {
       el.disabled = true;
       const typed = el.value;
-      const correct = isCorrect(typed, answer);
+      const correct = isCorrect(typed, answer, answerMeta);
       if (correct) score += 5;
       results.push(correct);
       answerLog.push({ answer, given: el.value, correct });
