@@ -661,6 +661,43 @@
       padding: 0;
     }
 
+    /* OAuth buttons */
+    .oauth-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 0.65rem;
+      border: 1px solid #dadce0;
+      background: #fff;
+      color: #3c4043;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 0.5rem;
+    }
+    .oauth-btn:hover { background: #f8f9fa; }
+    .oauth-btn svg { flex-shrink: 0; }
+
+    .oauth-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.75rem 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .oauth-divider::before,
+    .oauth-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e0ddd6;
+    }
+
     /* success state */
     .modal-success {
       display: none;
@@ -867,6 +904,11 @@
 
       <!-- Login form -->
       <form class="modal-form active" id="form-login" novalidate>
+        <button type="button" class="oauth-btn" onclick="App.handleGoogleSignIn()">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+          Continue with Google
+        </button>
+        <div class="oauth-divider">or</div>
         <div class="modal-field">
           <label class="modal-label" for="login-email">Email</label>
           <input class="modal-input" type="email" id="login-email" autocomplete="email" required>
@@ -887,6 +929,11 @@
 
       <!-- Sign-up form -->
       <form class="modal-form" id="form-signup" novalidate>
+        <button type="button" class="oauth-btn" onclick="App.handleGoogleSignIn()">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+          Continue with Google
+        </button>
+        <div class="oauth-divider">or</div>
         <div class="modal-field">
           <label class="modal-label" for="signup-username">Username</label>
           <input class="modal-input" type="text" id="signup-username" autocomplete="username" required>
@@ -905,6 +952,17 @@
           Already have an account?
           <button type="button" class="modal-switch-link" onclick="App.switchTab('login')">Log in</button>
         </p>
+      </form>
+
+      <!-- Choose username (after OAuth sign-in) -->
+      <form class="modal-form" id="form-username" novalidate>
+        <p class="modal-hint">One last step &mdash; choose a username to display on the leaderboard.</p>
+        <div class="modal-field">
+          <label class="modal-label" for="oauth-username">Username</label>
+          <input class="modal-input" type="text" id="oauth-username" autocomplete="username" required>
+        </div>
+        <div class="modal-error" id="username-error"></div>
+        <button type="submit" class="modal-submit" id="username-submit">Save Username</button>
       </form>
 
       <!-- Forgot password form -->
@@ -1294,6 +1352,11 @@ const App = (() => {
     if (user && db) {
       const { data } = await db.from('profiles').select('username').eq('id', user.id).single();
       currentProfile = data;
+      if (!data?.username) {
+        // OAuth user with no profile yet — ask for a username
+        showAuthModal('username');
+        return;
+      }
     } else {
       currentProfile = null;
     }
@@ -1333,18 +1396,18 @@ const App = (() => {
   }
 
   function switchTab(tab) {
-    ['login', 'signup', 'forgot', 'reset-user'].forEach(t => {
+    ['login', 'signup', 'forgot', 'reset-user', 'username'].forEach(t => {
       document.getElementById('form-' + t)?.classList.toggle('active', t === tab);
     });
     document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
     document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-    const hideTabs = tab === 'forgot' || tab === 'reset-user';
+    const hideTabs = tab === 'forgot' || tab === 'reset-user' || tab === 'username';
     document.querySelector('.modal-tabs').style.display = hideTabs ? 'none' : '';
     clearErrors();
   }
 
   function clearErrors() {
-    ['login-error', 'signup-error', 'forgot-error', 'reset-user-error'].forEach(id => {
+    ['login-error', 'signup-error', 'forgot-error', 'reset-user-error', 'username-error'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = '';
     });
@@ -1419,6 +1482,36 @@ const App = (() => {
 
   async function handleLogout() {
     if (db) await db.auth.signOut();
+  }
+
+  async function handleGoogleSignIn() {
+    if (!db) return;
+    await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    });
+  }
+
+  async function handleSetUsername(e) {
+    e.preventDefault();
+    const btn      = document.getElementById('username-submit');
+    const errEl    = document.getElementById('username-error');
+    const username = document.getElementById('oauth-username').value.trim();
+    errEl.textContent = '';
+    if (!username)           { errEl.textContent = 'Please choose a username.'; return; }
+    if (username.length < 3) { errEl.textContent = 'Username must be at least 3 characters.'; return; }
+    if (!db || !currentUser) { errEl.textContent = 'Not signed in.'; return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const { error } = await db.from('profiles').upsert({ id: currentUser.id, username });
+    btn.disabled = false; btn.textContent = 'Save Username';
+    if (error) {
+      errEl.textContent = error.code === '23505' ? 'That username is taken.' : error.message;
+      return;
+    }
+    currentProfile = { username };
+    updateAuthBar();
+    closeAuthModal();
+    if (pendingSubmit) { pendingSubmit = false; doSubmit(); }
   }
 
   async function handleForgotPassword(e) {
@@ -1889,6 +1982,7 @@ const App = (() => {
   document.getElementById('form-signup').addEventListener('submit',     handleSignup);
   document.getElementById('form-forgot').addEventListener('submit',     handleForgotPassword);
   document.getElementById('form-reset-user').addEventListener('submit', handleResetUserPassword);
+  document.getElementById('form-username').addEventListener('submit',   handleSetUsername);
 
   /* ─── BOOT ───────────────────────────────────────────── */
   function init() {
